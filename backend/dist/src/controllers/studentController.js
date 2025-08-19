@@ -1,0 +1,146 @@
+import studentService from '../services/studentService';
+class StudentController {
+    async getDashboard(req, res) {
+        try {
+            res.json({
+                message: 'Student dashboard',
+                user: req.user,
+                data: {
+                    tests: [],
+                    grades: [],
+                    announcements: []
+                }
+            });
+            return;
+        }
+        catch (error) {
+            console.error('Error getting student dashboard:', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    }
+    async getProfile(req, res) {
+        try {
+            if (!req.user?.id) {
+                res.status(400).json({ message: 'User ID not found' });
+                return;
+            }
+            const student = await studentService.findById(req.user.id);
+            if (!student) {
+                res.status(404).json({ message: 'Student not found' });
+                return;
+            }
+            res.json({ student });
+            return;
+        }
+        catch (error) {
+            console.error('Error getting student profile:', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    }
+    async getAllStudents(req, res) {
+        try {
+            const students = await studentService.getAllStudents();
+            res.json({ students });
+            return;
+        }
+        catch (error) {
+            console.error('Error getting all students:', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    }
+    async getStudentById(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: 'Student ID is required' });
+                return;
+            }
+            const studentId = parseInt(id, 10);
+            if (isNaN(studentId)) {
+                res.status(400).json({ message: 'Invalid student ID' });
+                return;
+            }
+            const student = await studentService.findById(studentId);
+            if (!student) {
+                res.status(404).json({ message: 'Student not found' });
+                return;
+            }
+            res.json({ student });
+            return;
+        }
+        catch (error) {
+            console.error('Error getting student by ID:', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    }
+    async createStudent(req, res) {
+        try {
+            const student = await studentService.createStudent(req.body);
+            res.status(201).json({ student });
+            return;
+        }
+        catch (error) {
+            console.error('Error creating student:', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    }
+    async updateStudent(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: 'Student ID is required' });
+                return;
+            }
+            const studentId = parseInt(id, 10);
+            if (isNaN(studentId)) {
+                res.status(400).json({ message: 'Invalid student ID' });
+                return;
+            }
+            const student = await studentService.updateStudent(studentId, req.body);
+            if (!student) {
+                res.status(404).json({ message: 'Student not found' });
+                return;
+            }
+            res.json({ student });
+            return;
+        }
+        catch (error) {
+            console.error('Error updating student:', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    }
+    async deleteStudent(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: 'Student ID is required' });
+                return;
+            }
+            const studentId = parseInt(id, 10);
+            if (isNaN(studentId)) {
+                res.status(400).json({ message: 'Invalid student ID' });
+                return;
+            }
+            const success = await studentService.deleteStudent(studentId);
+            if (!success) {
+                res.status(404).json({ message: 'Student not found' });
+                return;
+            }
+            res.status(204).send();
+            return;
+        }
+        catch (error) {
+            console.error('Error deleting student:', error);
+            res.status(500).json({ message: 'Internal server error' });
+            return;
+        }
+    }
+}
+export default new StudentController();
+//# sourceMappingURL=studentController.js.map
