@@ -1,0 +1,149 @@
+/* Login Page Styles with RTL Support */
+.login-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-container {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  padding: 3rem;
+  width: 100%;
+  max-width: 450px;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+
+.login-header {
+  margin-bottom: 2rem;
+}
+
+.login-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.login-header p {
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+.login-form {
+  margin-bottom: 2rem;
+}
+
+.login-button {
+  width: 100%;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 1rem;
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.login-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(59, 130, 246, 0.4);
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-footer {
+  margin-bottom: 1.5rem;
+  padding: 1rem 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.login-footer p {
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.3s ease;
+}
+
+.link-button:hover {
+  color: #1d4ed8;
+}
+
+.back-home {
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.back-home .link-button {
+  color: #64748b;
+}
+
+.back-home .link-button:hover {
+  color: #475569;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .login-container {
+    padding: 2rem;
+    margin: 20px;
+  }
+  
+  .login-header h1 {
+    font-size: 2rem;
+  }
+  
+  .login-header p {
+    font-size: 1rem;
+  }
+  
+  .login-button {
+    padding: 14px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 10px;
+  }
+  
+  .login-container {
+    padding: 1.5rem;
+    margin: 10px;
+  }
+  
+  .login-header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .login-header p {
+    font-size: 0.9rem;
+  }
+  
+  .login-button {
+    padding: 12px;
+    font-size: 15px;
+  }
+} 

@@ -1,0 +1,18 @@
+.admin-dashboard-layout {
+  display: flex;
+  padding-top: 60px; /* Navbar height */
+}
+
+.admin-main-content {
+  flex-grow: 1;
+  padding: 20px;
+  margin-right: 250px; /* Sidebar width */
+  width: calc(100% - 250px);
+}
+
+@media (max-width: 768px) {
+  .admin-main-content {
+    margin-right: 0;
+    width: 100%;
+  }
+}

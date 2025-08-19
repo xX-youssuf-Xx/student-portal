@@ -10,6 +10,7 @@ CREATE TABLE students (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     phone_number TEXT NOT NULL,
+    parent_phone TEXT NULL,
     grade grade_enum NOT NULL,
     student_group group_enum NULL,
     password TEXT NOT NULL,
