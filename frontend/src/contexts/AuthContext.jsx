@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+// Set global API base URL for all axios requests
+axios.defaults.baseURL = 'https://studentportal.egypt-tech.com/api';
 
 const AuthContext = createContext();
 
@@ -33,7 +34,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (phoneNumber, password, userType) => {
     try {
       const endpoint = userType === 'admin' ? '/admin/login' : '/student/login';
-      const response = await axios.post(`${API_BASE_URL}${endpoint}`, {
+      const response = await axios.post(endpoint, {
         phone_number: phoneNumber,
         password: password
       });

@@ -22,7 +22,7 @@ const StudentManagement = () => {
 
   const fetchStudents = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/api/admin/students');
+      const response = await axios.get('/admin/students');
       setStudents(response.data && response.data.students ? response.data.students : []);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -42,7 +42,7 @@ const StudentManagement = () => {
   const handleDeleteStudent = async (id) => {
     if (window.confirm('هل أنت متأكد أنك تريد حذف هذا الطالب؟')) {
       try {
-        await axios.delete(`http://localhost:3000/api/admin/students/${id}`);
+        await axios.delete(`/admin/students/${id}`);
         fetchStudents();
       } catch (error) {
         console.error('Error deleting student:', error);
@@ -59,10 +59,10 @@ const StudentManagement = () => {
       }
 
       if (id) {
-        await axios.put(`http://localhost:3000/api/admin/students/${id}`, dataToSave);
+        await axios.put(`/admin/students/${id}`, dataToSave);
         setToast({ type: 'success', message: 'تم تحديث بيانات الطالب بنجاح' });
       } else {
-        await axios.post('http://localhost:3000/api/admin/students', dataToSave);
+        await axios.post('/admin/students', dataToSave);
         setToast({ type: 'success', message: 'تم إضافة الطالب بنجاح' });
       }
       fetchStudents();
