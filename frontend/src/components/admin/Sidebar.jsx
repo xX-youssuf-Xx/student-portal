@@ -14,7 +14,10 @@ const Sidebar = () => {
           <span className="icon" aria-hidden>👥</span>
           <span className="label">الطلاب</span>
         </NavLink>
-        {/* Add more links here as needed */}
+        <NavLink to="/admin/dashboard/tests" className={({ isActive }) => isActive ? "sidebar-link active" : "sidebar-link"}>
+          <span className="icon" aria-hidden>📝</span>
+          <span className="label">الاختبارات</span>
+        </NavLink>
       </nav>
     </div>
   );

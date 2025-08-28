@@ -10,6 +10,9 @@ import StudentDashboard from './pages/StudentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import DashboardHomePage from './pages/admin/DashboardHomePage';
 import StudentManagement from './pages/admin/StudentManagement';
+import TestManagement from './pages/admin/TestManagement';
+import TestTaking from './pages/TestTaking';
+import TestResult from './pages/TestResult';
 import './App.css';
 
 // Protected Route Component
@@ -51,6 +54,22 @@ const AppContent = () => {
               } 
             />
             <Route 
+              path="/test/:testId" 
+              element={
+                <ProtectedRoute allowedTypes={['student']}>
+                  <TestTaking />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/test/:testId/result" 
+              element={
+                <ProtectedRoute allowedTypes={['student']}>
+                  <TestResult />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/admin/dashboard" 
               element={
                 <ProtectedRoute allowedTypes={['admin']}>
@@ -60,6 +79,7 @@ const AppContent = () => {
             >
               <Route index element={<DashboardHomePage />} />
               <Route path="students" element={<StudentManagement />} />
+              <Route path="tests" element={<TestManagement />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

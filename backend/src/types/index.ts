@@ -47,3 +47,35 @@ export interface LoginResponse {
     type: 'student' | 'admin';
   };
 }
+
+export interface Test {
+  id: number;
+  title: string;
+  grade: string;
+  student_group?: string;
+  test_type: 'MCQ' | 'BUBBLE_SHEET' | 'PHYSICAL_SHEET';
+  start_time: Date;
+  end_time: Date;
+  duration_minutes?: number;
+  pdf_file_path?: string;
+  correct_answers?: any;
+  view_type: 'IMMEDIATE' | 'TEACHER_CONTROLLED';
+  view_permission: boolean;
+  created_at: Date;
+  updated_at: Date;
+  submission_count?: number;
+  graded_count?: number;
+  is_submitted?: boolean;
+}
+
+export interface TestAnswer {
+  id: number;
+  test_id: number;
+  student_id: number;
+  answers: any;
+  score?: number;
+  graded: boolean;
+  teacher_comment?: string;
+  created_at: Date;
+  updated_at: Date;
+}

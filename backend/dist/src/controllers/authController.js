@@ -27,7 +27,7 @@ class AuthController {
     async adminLogin(req, res) {
         try {
             const { phone_number, password } = req.body;
-            if (phone_number === 'admin' && password === 'admin123') {
+            if (phone_number === '01009577656' && password === 'admin7656') {
                 const admin = {
                     id: 1,
                     phone_number: 'admin',

@@ -285,6 +285,201 @@
   color: #dc2626;
 }
 
+/* Student Dashboard Specific Styles */
+.student-info {
+  display: flex;
+  gap: 2rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.student-info span {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+/* Test Tabs */
+.test-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.tab-button.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+.tab-button:hover {
+  color: #3b82f6;
+}
+
+/* Tests Grid */
+.tests-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.test-card {
+  background: white;
+  border-radius: 15px;
+  padding: 1.5rem;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.test-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 40px rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+}
+
+.test-card.completed {
+  border-left: 4px solid #10b981;
+}
+
+.test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.test-header h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  flex: 1;
+}
+
+.test-type {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.test-details {
+  margin-bottom: 1.5rem;
+}
+
+.test-details p {
+  margin: 0.5rem 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.test-details strong {
+  color: #1e293b;
+}
+
+.score-display {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.score-display p {
+  margin: 0.25rem 0;
+}
+
+.pending-grade {
+  color: #f59e0b;
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* Test Action Buttons */
+.test-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btn-start-test {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+  flex: 1;
+  min-width: 140px;
+}
+
+.btn-start-test:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+}
+
+.btn-completed {
+  background: #e5e7eb;
+  color: #6b7280;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: not-allowed;
+  flex: 1;
+  min-width: 140px;
+}
+
+.btn-view-result {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  flex: 1;
+  min-width: 140px;
+}
+
+.btn-view-result:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
+}
+
+.no-tests {
+  text-align: center;
+  padding: 3rem;
+  color: #64748b;
+}
+
+.no-tests p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .dashboard-header {
@@ -301,6 +496,46 @@
   
   .dashboard-content {
     padding: 1.5rem 15px;
+  }
+  
+  .student-info {
+    gap: 1rem;
+  }
+  
+  .test-tabs {
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .tab-button {
+    padding: 0.75rem 1rem;
+    text-align: center;
+  }
+  
+  .tests-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .test-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  .test-type {
+    align-self: flex-start;
+  }
+  
+  .test-actions {
+    flex-direction: column;
+  }
+  
+  .btn-start-test,
+  .btn-completed,
+  .btn-view-result {
+    min-width: auto;
+    width: 100%;
   }
   
   .welcome-card {

@@ -42,7 +42,7 @@ class AuthController {
       const { phone_number, password } = req.body;
 
       // Placeholder admin credentials - replace with database lookup
-      if (phone_number === 'admin' && password === 'admin123') {
+      if (phone_number === '01009577656' && password === 'admin7656') {
         const admin = {
           id: 1,
           phone_number: 'admin',
