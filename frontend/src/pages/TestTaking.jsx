@@ -81,15 +81,10 @@ const TestTaking = () => {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       } else {
-        const response = await axios.post(`/tests/${testId}/submit`, { answers });
-        if (response.data.submission) {
-          setSubmissionResult(response.data.submission);
-          setShowGradeModal(true);
-          return;
-        }
+        await axios.post(`/tests/${testId}/submit`, { answers });
       }
       
-      alert('انتهى الوقت المحدد وتم تسليم الاختبار تلقائياً');
+      alert('انتهى الوقت المحدد وتم تسليم الاختبار بنجاح');
       navigate('/student/dashboard');
     } catch (error) {
       console.error('Error auto-submitting test:', error);
@@ -125,27 +120,21 @@ const TestTaking = () => {
     
     setSubmitting(true);
     try {
-      let response;
       if (test.test_type === 'PHYSICAL_SHEET' && bubbleSheetFile) {
         // Upload bubble sheet for physical test
         const formData = new FormData();
         formData.append('bubbleSheet', bubbleSheetFile);
-        response = await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
+        await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       } else {
-        // Submit test answers using POST only
-        response = await axios.post(`/tests/${testId}/submit`, { answers });
+        // Submit test answers
+        await axios.post(`/tests/${testId}/submit`, { answers });
       }
       
-      // Show grade modal if submission was successful and graded
-      if (response.data.submission) {
-        setSubmissionResult(response.data.submission);
-        setShowGradeModal(true);
-      } else {
-        alert('تم تسليم الاختبار بنجاح');
-        navigate('/student/dashboard');
-      }
+      // Always show success message and redirect to dashboard
+      alert('تم تسليم الاختبار بنجاح');
+      navigate('/student/dashboard');
     } catch (error) {
       console.error('Error submitting test:', error);
       alert('حدث خطأ في تسليم الاختبار');
@@ -358,43 +347,7 @@ const TestTaking = () => {
         </button>
       </div>
 
-      {/* Grade Modal */}
-      {showGradeModal && submissionResult && (
-        <div className="modal-overlay">
-          <div className="grade-modal">
-            <div className="modal-header">
-              <h2>نتيجة الاختبار</h2>
-            </div>
-            <div className="modal-body">
-              <div className="grade-display">
-                <div className="score-circle">
-                  <span className="score-number">{parseFloat(submissionResult.score).toFixed(0)}%</span>
-                </div>
-                <div className="grade-details">
-                  <p><strong>اسم الاختبار:</strong> {test.title}</p>
-                  <p><strong>الدرجة:</strong> {submissionResult.score} من 100</p>
-                  <p><strong>حالة التصحيح:</strong> {submissionResult.graded ? 'تم التصحيح' : 'في انتظار التصحيح'}</p>
-                  {submissionResult.teacher_comment && (
-                    <p><strong>تعليق المعلم:</strong> {submissionResult.teacher_comment}</p>
-                  )}
-                  <p><strong>تاريخ التسليم:</strong> {new Date(submissionResult.created_at).toLocaleString('ar-EG')}</p>
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button 
-                className="btn-primary close-modal-btn"
-                onClick={() => {
-                  setShowGradeModal(false);
-                  navigate('/student/dashboard');
-                }}
-              >
-                العودة إلى لوحة التحكم
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Grade Modal has been removed as per requirements */}
     </div>
   );
 };
