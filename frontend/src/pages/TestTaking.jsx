@@ -1,37 +1,161 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
+import PDFViewer from '../components/PDFViewer';
 import './TestTaking.css';
+import './TestTaking.security.css';
 
 const TestTaking = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // ALL STATE HOOKS FIRST
   const [test, setTest] = useState(null);
-  const [answers, setAnswers] = useState({});
-  const [timeLeft, setTimeLeft] = useState(null);
+  const [answers, setAnswers] = useState(() => {
+    // Load answers from localStorage if available
+    const saved = localStorage.getItem(`test_${testId}_answers`);
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [timeLeft, setTimeLeft] = useState(() => {
+    // Load timeLeft from localStorage if available, or default to null
+    const saved = localStorage.getItem(`test_${testId}_time`);
+    return saved ? parseInt(saved, 10) : null;
+  });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [bubbleSheetFile, setBubbleSheetFile] = useState(null);
   const [showGradeModal, setShowGradeModal] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
+  
+  // ALL EFFECTS MUST BE DECLARED BEFORE ANY CONDITIONAL RETURNS
+  
+  // Save answers to localStorage whenever they change
+  useEffect(() => {
+    if (Object.keys(answers).length > 0) {
+      localStorage.setItem(`test_${testId}_answers`, JSON.stringify(answers));
+    }
+  }, [answers, testId]);
+  
+  // Save timeLeft to localStorage every second
+  useEffect(() => {
+    if (timeLeft !== null) {
+      const timer = setInterval(() => {
+        localStorage.setItem(`test_${testId}_time`, timeLeft.toString());
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [timeLeft, testId]);
 
   useEffect(() => {
     fetchTest();
   }, [testId]);
 
-  // Removed createTestAnswerRecord - no need to create draft submissions
-
+  // Handle test submission when time runs out
   useEffect(() => {
     if (timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      const timer = setTimeout(() => {
+        setTimeLeft(timeLeft - 1);
+      }, 1000);
       return () => clearTimeout(timer);
     } else if (timeLeft === 0) {
       handleAutoSubmit();
     }
   }, [timeLeft]);
 
+  useEffect(() => {
+    // Prevent navigation away from the test page
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+
+    // Prevent context menu (right-click)
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      return false;
+    };
+
+    // Prevent keyboard shortcuts
+    const handleKeyDown = (e) => {
+      // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U, PrintScreen, etc.
+      if (
+        e.key === 'F12' ||
+        e.key === 'PrintScreen' ||
+        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+        (e.ctrlKey && e.key === 'U') ||
+        (e.ctrlKey && e.key === 'S') ||
+        (e.ctrlKey && e.key === 'P') ||
+        (e.metaKey && e.shiftKey && e.key === '4') // Cmd+Shift+4 (Mac screenshot)
+      ) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    // Track visibility changes (for detecting screenshots and app switching)
+    let visibilityChangeCount = 0;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        visibilityChangeCount++;
+        if (visibilityChangeCount > 2) {
+          // After multiple visibility changes, assume screenshot attempt
+          alert('تم اكتشاف محاولة أخذ لقطة شاشة. سيتم إنهاء الاختبار بعد 3 محاولات.');
+          if (visibilityChangeCount >= 3) {
+            handleAutoSubmit();
+          }
+        } else {
+          alert('يُرجى عدم محاولة أخذ لقطة شاشة أثناء الاختبار.');
+        }
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // CSS prevention effect - MOVED BEFORE CONDITIONAL RETURNS
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      body {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+      * {
+        -webkit-user-drag: none;
+        -khtml-user-drag: none;
+        -moz-user-select: none;
+        -o-user-drag: none;
+        user-drag: none;
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  // HELPER FUNCTIONS (these can be anywhere but are typically after hooks)
   const fetchTest = async () => {
     try {
       // First get basic test info
@@ -67,25 +191,40 @@ const TestTaking = () => {
     }
   };
 
-  // Removed createTestAnswerRecord function - no longer needed
-
   const handleAutoSubmit = async () => {
     if (submitting) return;
     
     setSubmitting(true);
     try {
+      let response;
       if (test.test_type === 'PHYSICAL_SHEET' && bubbleSheetFile) {
         const formData = new FormData();
         formData.append('bubbleSheet', bubbleSheetFile);
-        await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
+        response = await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       } else {
-        await axios.post(`/tests/${testId}/submit`, { answers });
+        response = await axios.post(`/tests/${testId}/submit`, { answers });
       }
       
-      alert('انتهى الوقت المحدد وتم تسليم الاختبار بنجاح');
-      navigate('/student/dashboard');
+      if (response?.data?.submission) {
+        // Fetch rank after successful submission
+        try {
+          const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
+          setSubmissionResult({
+            ...response.data.submission,
+            rank: rankResponse.data.rank,
+            totalStudents: rankResponse.data.totalStudents
+          });
+        } catch (error) {
+          console.error('Error fetching rank:', error);
+          setSubmissionResult(response.data.submission);
+        }
+        setShowGradeModal(true);
+      } else {
+        alert('تم تسليم الاختبار بنجاح');
+        navigate('/student/dashboard');
+      }
     } catch (error) {
       console.error('Error auto-submitting test:', error);
       alert('انتهى الوقت ولكن حدث خطأ في التسليم التلقائي');
@@ -115,26 +254,91 @@ const TestTaking = () => {
     }));
   };
 
+  const renderBubbleSheet = () => {
+    const rows = [];
+    const questionsPerColumn = 25; // Number of questions per column
+    const totalQuestions = 50; // Total number of questions
+    const totalColumns = Math.ceil(totalQuestions / questionsPerColumn);
+    
+    // Create rows for each question in the column
+    for (let row = 0; row < questionsPerColumn; row++) {
+      const cells = [];
+      // Create cells for each column
+      for (let col = 0; col < totalColumns; col++) {
+        const questionNum = col * questionsPerColumn + row + 1;
+        if (questionNum > totalQuestions) break;
+        
+        cells.push(
+          <div key={questionNum} className="bubble-question">
+            <div className="question-number">{questionNum}</div>
+            <div className="bubble-options">
+              {['A', 'B', 'C', 'D'].map(option => (
+                <label key={option} className="bubble-option">
+                  <input
+                    type="radio"
+                    name={`q${questionNum}`}
+                    value={option}
+                    checked={answers.answers?.[questionNum] === option}
+                    onChange={() => handleBubbleSheetAnswer(questionNum, option)}
+                    disabled={submitting}
+                  />
+                  <span className="bubble">{option}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      
+      rows.push(
+        <div key={row} className="bubble-row">
+          {cells}
+        </div>
+      );
+    }
+    
+    return (
+      <div className="bubble-sheet-container">
+        {rows}
+      </div>
+    );
+  };
+
   const handleSubmit = async () => {
     if (submitting) return;
     
     setSubmitting(true);
     try {
+      let response;
       if (test.test_type === 'PHYSICAL_SHEET' && bubbleSheetFile) {
-        // Upload bubble sheet for physical test
         const formData = new FormData();
         formData.append('bubbleSheet', bubbleSheetFile);
-        await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
+        response = await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       } else {
         // Submit test answers
-        await axios.post(`/tests/${testId}/submit`, { answers });
+        response = await axios.post(`/tests/${testId}/submit`, { answers });
       }
       
-      // Always show success message and redirect to dashboard
-      alert('تم تسليم الاختبار بنجاح');
-      navigate('/student/dashboard');
+      if (response?.data?.submission) {
+        // Fetch rank after successful submission
+        try {
+          const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
+          setSubmissionResult({
+            ...response.data.submission,
+            rank: rankResponse.data.rank,
+            totalStudents: rankResponse.data.totalStudents
+          });
+        } catch (error) {
+          console.error('Error fetching rank:', error);
+          setSubmissionResult(response.data.submission);
+        }
+        setShowGradeModal(true);
+      } else {
+        alert('تم تسليم الاختبار بنجاح');
+        navigate('/student/dashboard');
+      }
     } catch (error) {
       console.error('Error submitting test:', error);
       alert('حدث خطأ في تسليم الاختبار');
@@ -154,6 +358,7 @@ const TestTaking = () => {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // NOW CONDITIONAL RETURNS CAN HAPPEN AFTER ALL HOOKS
   if (loading) {
     return <div className="loading">جاري تحميل الاختبار...</div>;
   }
@@ -237,7 +442,7 @@ const TestTaking = () => {
                     const pdfViewer = document.querySelector('.bubble-sheet-test .pdf-viewer');
                     if (bubbleSheet.style.display === 'none') {
                       bubbleSheet.style.display = 'block';
-                      pdfViewer.style.width = '50%';
+                      pdfViewer.style.width = '55%';
                     } else {
                       bubbleSheet.style.display = 'none';
                       pdfViewer.style.width = '100%';
@@ -248,39 +453,22 @@ const TestTaking = () => {
                 </button>
               </div>
               {test.pdf_file_path ? (
-                <iframe
-                  src={`https://studentportal.egypt-tech.com/${test.pdf_file_path.replace(/\\/g, '/')}`}
-                  width="100%"
-                  height="600px"
-                  title="ورقة الامتحان"
-                />
+                <div className="pdf-container">
+                  <PDFViewer 
+                    pdfUrl={`https://studentportal.egypt-tech.com/${test.pdf_file_path.replace(/\\/g, '/')}`}
+                    height="100%"
+                  />
+                </div>
               ) : (
-                <p>لم يتم رفع ورقة الامتحان</p>
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-gray-500">لم يتم رفع ورقة الامتحان</p>
+                </div>
               )}
             </div>
             
             <div className="bubble-sheet">
               <h3>بابل الكتروني</h3>
-              <div className="bubble-grid">
-                {Array.from({ length: 50 }, (_, i) => i + 1).map(questionNum => (
-                  <div key={questionNum} className="bubble-question">
-                    <span className="question-number">{questionNum}</span>
-                    <div className="bubble-options">
-                      {['A', 'B', 'C', 'D'].map(option => (
-                        <label key={option} className="bubble-option">
-                          <input
-                            type="radio"
-                            name={`bubble-${questionNum}`}
-                            value={option}
-                            onChange={() => handleBubbleSheetAnswer(questionNum, option)}
-                          />
-                          <span className="bubble">{option}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {renderBubbleSheet()}
             </div>
           </div>
         )}
@@ -309,14 +497,16 @@ const TestTaking = () => {
                 </button>
               </div>
               {test.pdf_file_path ? (
-                <iframe
-                  src={`https://studentportal.egypt-tech.com/${test.pdf_file_path.replace(/\\/g, '/')}`}
-                  width="100%"
-                  height="600px"
-                  title="ورقة الامتحان"
-                />
+                <div className="pdf-container">
+                  <PDFViewer 
+                    pdfUrl={`https://studentportal.egypt-tech.com/${test.pdf_file_path.replace(/\\/g, '/')}`}
+                    height="100%"
+                  />
+                </div>
               ) : (
-                <p>لم يتم رفع ورقة الامتحان</p>
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-gray-500">لم يتم رفع ورقة الامتحان</p>
+                </div>
               )}
             </div>
             
@@ -347,7 +537,46 @@ const TestTaking = () => {
         </button>
       </div>
 
-      {/* Grade Modal has been removed as per requirements */}
+      {/* Grade Modal */}
+      {showGradeModal && submissionResult && (
+        <div className="modal-overlay">
+          <div className="grade-modal">
+            <div className="modal-header">
+              <h2>نتيجة الاختبار</h2>
+            </div>
+            <div className="modal-body">
+              <div className="grade-display">
+                <div className="score-circle">
+                  <span className="score-number">{parseFloat(submissionResult.score || 0).toFixed(0)}%</span>
+                </div>
+                <div className="grade-details">
+                  <p><strong>اسم الاختبار:</strong> {test.title}</p>
+                  <p><strong>الدرجة:</strong> {submissionResult.score || 0} من 100</p>
+                  {submissionResult.rank && submissionResult.totalStudents && (
+                    <p><strong>الترتيب:</strong> {submissionResult.rank} من {submissionResult.totalStudents}</p>
+                  )}
+                  <p><strong>حالة التصحيح:</strong> {submissionResult.graded ? 'تم التصحيح' : 'في انتظار التصحيح'}</p>
+                  {submissionResult.teacher_comment && (
+                    <p><strong>تعليق المعلم:</strong> {submissionResult.teacher_comment}</p>
+                  )}
+                  <p><strong>تاريخ التسليم:</strong> {new Date(submissionResult.created_at).toLocaleString('ar-EG')}</p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn-primary close-modal-btn"
+                onClick={() => {
+                  setShowGradeModal(false);
+                  navigate('/student/dashboard');
+                }}
+              >
+                العودة إلى لوحة التحكم
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

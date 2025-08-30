@@ -18,6 +18,7 @@ declare class TestController {
     submitTest(req: AuthenticatedRequest, res: Response): Promise<void>;
     getTestResult(req: AuthenticatedRequest, res: Response): Promise<void>;
     uploadBubbleSheet(req: AuthenticatedRequest, res: Response): Promise<void>;
+    getStudentRank(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
 declare const _default: TestController;
 export default _default;

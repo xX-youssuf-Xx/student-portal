@@ -17,5 +17,6 @@ router.get('/tests/:id/questions', authenticateToken, testController.getTestQues
 router.post('/tests/:id/submit', authenticateToken, testController.submitTest);
 router.get('/tests/:id/result', authenticateToken, testController.getTestResult);
 router.post('/tests/:id/upload-bubble-sheet', authenticateToken, upload.single('bubbleSheet'), testController.uploadBubbleSheet);
+router.get('/tests/:id/submissions/rank', authenticateToken, testController.getStudentRank);
 export default router;
 //# sourceMappingURL=test.js.map

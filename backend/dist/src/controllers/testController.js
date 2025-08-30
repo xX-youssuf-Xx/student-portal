@@ -334,6 +334,54 @@ class TestController {
             res.status(500).json({ message: 'Internal server error' });
         }
     }
+    async getStudentRank(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: 'Test ID is required' });
+                return;
+            }
+            const testId = parseInt(id, 10);
+            if (isNaN(testId) || !req.user?.id) {
+                res.status(400).json({ message: 'Invalid test ID or user ID' });
+                return;
+            }
+            const submissions = await testService.getTestSubmissions(testId);
+            const currentStudentSubmission = submissions.find((s) => s.student_id === req.user?.id && s.test_id === testId);
+            if (!currentStudentSubmission) {
+                res.status(404).json({ message: 'Submission not found for this test' });
+                return;
+            }
+            let rank = 1;
+            let prevScore = null;
+            let sameScoreCount = 0;
+            for (const [index, submission] of submissions.entries()) {
+                if (index > 0 && submission.score !== prevScore) {
+                    rank += sameScoreCount;
+                    sameScoreCount = 0;
+                }
+                if (submission.student_id === req.user?.id) {
+                    break;
+                }
+                if (submission.score === prevScore) {
+                    sameScoreCount++;
+                }
+                else {
+                    sameScoreCount = 1;
+                    prevScore = submission.score;
+                }
+            }
+            res.json({
+                rank,
+                totalStudents: submissions.length,
+                score: currentStudentSubmission.score
+            });
+        }
+        catch (error) {
+            console.error('Error getting student rank:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
 }
 export default new TestController();
 //# sourceMappingURL=testController.js.map

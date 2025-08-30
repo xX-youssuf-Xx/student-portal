@@ -142,14 +142,95 @@
 .bubble-sheet-test {
   display: flex;
   gap: 30px;
+  height: 70vh; /* Fixed height for the container */
+  min-height: 500px; /* Minimum height */
+  overflow: hidden;
+  position: relative;
+}
+
+/* PDF Container Styles */
+.pdf-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0; /* Allow container to shrink */
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f5;
+}
+
+.pdf-container object {
+  width: 100%;
+  height: 100%;
+  border: none;
+  pointer-events: auto;
+}
+
+.pdf-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Prevent right-click and context menu */
+.pdf-container {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Disable text selection */
+body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Disable print */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #no-print, #no-print * {
+    display: none !important;
+  }
 }
 
 .pdf-viewer {
+  flex: 1;
   background: white;
   border-radius: 10px;
   padding: 20px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  transition: all 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.pdf-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.pdf-container object {
+  width: 100%;
+  height: 100%;
+  border: none;
 }
 
 .pdf-viewer.collapsed {
@@ -197,8 +278,96 @@
   border-radius: 10px;
   padding: 20px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  max-height: 80vh;
+  width: 40%;
+  height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Custom scrollbar for bubble sheet */
+.bubble-sheet::-webkit-scrollbar {
+  width: 8px;
+}
+
+.bubble-sheet::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.bubble-sheet::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.bubble-sheet::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.bubble-sheet-container {
+  display: inline-block;
+  min-width: 100%;
+}
+
+.bubble-row {
+  display: flex;
+  margin-bottom: 10px;
+  gap: 15px;
+}
+
+.bubble-question {
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+  padding: 5px 10px;
+  background: #f8f9fa;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.question-number {
+  font-weight: bold;
+  margin-right: 10px;
+  min-width: 25px;
+  text-align: center;
+}
+
+.bubble-options {
+  display: flex;
+  gap: 5px;
+}
+
+.bubble-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.bubble-option input[type="radio"] {
+  display: none;
+}
+
+.bubble {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #bdc3c7;
+  border-radius: 50%;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bubble-option input[type="radio"]:checked + .bubble {
+  background-color: #3498db;
+  border-color: #3498db;
+}
+
+.bubble-option input[type="radio"]:disabled + .bubble {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .bubble-sheet h3 {

@@ -105,8 +105,8 @@ class TestService {
       SELECT ta.*, s.name as student_name, s.phone_number, s.grade, s.student_group
       FROM test_answers ta
       JOIN students s ON ta.student_id = s.id
-      WHERE ta.test_id = $1
-      ORDER BY ta.created_at DESC
+      WHERE ta.test_id = $1 AND ta.submitted = true
+      ORDER BY ta.score DESC NULLS LAST, ta.updated_at ASC
     `;
         const result = await database.query(query, [testId]);
         return result.rows;
