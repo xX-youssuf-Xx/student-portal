@@ -281,7 +281,7 @@ const TestResult = () => {
           <div className="test-pdf-reference">
             <h3>ورقة الامتحان للمراجعة</h3>
             <iframe
-              src={`https://studentportal.egypt-tech.com/${result.pdf_file_path}`}
+              src={`http://localhost:3000/${result.pdf_file_path}`}
               width="100%"
               height="600px"
               title="ورقة الامتحان"
