@@ -455,7 +455,7 @@ const TestTaking = () => {
               {test.pdf_file_path ? (
                 <div className="pdf-container">
                   <PDFViewer 
-                    pdfUrl={`http://localhost:3000/${test.pdf_file_path.replace(/\\/g, '/')}`}
+                    pdfUrl={`https://studentportal.egypt-tech.com/${test.pdf_file_path.replace(/\\/g, '/')}`}
                     height="100%"
                   />
                 </div>
@@ -499,7 +499,7 @@ const TestTaking = () => {
               {test.pdf_file_path ? (
                 <div className="pdf-container">
                   <PDFViewer 
-                    pdfUrl={`http://localhost:3000/${test.pdf_file_path.replace(/\\/g, '/')}`}
+                    pdfUrl={`https://studentportal.egypt-tech.com/${test.pdf_file_path.replace(/\\/g, '/')}`}
                     height="100%"
                   />
                 </div>
