@@ -11,9 +11,12 @@ const TestResult = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAnswers, setShowAnswers] = useState(false);
+  const [rank, setRank] = useState(null);
+  const [totalStudents, setTotalStudents] = useState(0);
 
   useEffect(() => {
     fetchResult();
+    fetchRank();
   }, [testId]);
 
   const fetchResult = async () => {
@@ -26,6 +29,17 @@ const TestResult = () => {
       navigate('/student/dashboard');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRank = async () => {
+    try {
+      const response = await axios.get(`/tests/${testId}/submissions/rank`);
+      setRank(response.data.rank);
+      setTotalStudents(response.data.totalStudents);
+    } catch (error) {
+      console.error('Error fetching rank:', error);
+      // Don't show error to user as rank is secondary information
     }
   };
 
@@ -238,6 +252,20 @@ const TestResult = () => {
                 {result.visible_score >= 50 && result.visible_score < 70 && 'جيد، يمكنك التحسن أكثر'}
                 {result.visible_score < 50 && 'يحتاج إلى مراجعة المادة'}
               </p>
+              
+              {rank !== null && (
+                <div className="rank-display">
+                  <span className="rank-value">
+                    ترتيبك: {rank} من {totalStudents}
+                  </span>
+                  <div className="rank-progress">
+                    <div 
+                      className="rank-progress-bar" 
+                      style={{ width: `${(rank / totalStudents) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
