@@ -245,12 +245,22 @@ const TestTaking = () => {
         // mark as submitted to disable inputs and buttons
         setSubmitted(true);
         setShowBubblePanel(false);
-        // For students, do not call rank (admin-only). Show waiting modal if physical and ungraded, else show grade modal without rank.
+        // After submission: try to fetch student's rank (students are authorized)
         if (test.test_type === 'PHYSICAL_SHEET' && !response.data.submission.graded) {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
         } else {
-          setSubmissionResult(response.data.submission);
+          try {
+            const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
+            setSubmissionResult({
+              ...response.data.submission,
+              rank: rankResponse.data.rank,
+              totalStudents: rankResponse.data.totalStudents
+            });
+          } catch (err) {
+            // If rank is unavailable, just show submission without it
+            setSubmissionResult(response.data.submission);
+          }
           setShowGradeModal(true);
         }
       } else {
@@ -307,7 +317,16 @@ const TestTaking = () => {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
         } else {
-          setSubmissionResult(response.data.submission);
+          try {
+            const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
+            setSubmissionResult({
+              ...response.data.submission,
+              rank: rankResponse.data.rank,
+              totalStudents: rankResponse.data.totalStudents
+            });
+          } catch (err) {
+            setSubmissionResult(response.data.submission);
+          }
           setShowGradeModal(true);
         }
       } else {
