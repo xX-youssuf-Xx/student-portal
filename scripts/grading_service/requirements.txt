@@ -1,0 +1,7 @@
+# Project dependencies for grading_service
+# Install with: pip install -r requirements.txt
+
+boxdetect
+opencv-python>=4.5.5
+numpy>=1.19.5
+matplotlib>=3.3.0

@@ -30,6 +30,32 @@ class DatabaseService {
     async query(text, params) {
         return this.pool.query(text, params);
     }
+    async getClient() {
+        const client = await this.pool.connect();
+        return {
+            query: (text, params) => client.query(text, params),
+            release: () => client.release(),
+            queryWithTransaction: async (queries) => {
+                try {
+                    await client.query('BEGIN');
+                    const results = [];
+                    for (const query of queries) {
+                        const result = await client.query(query.text, query.params);
+                        results.push(result);
+                    }
+                    await client.query('COMMIT');
+                    return results;
+                }
+                catch (error) {
+                    await client.query('ROLLBACK');
+                    throw error;
+                }
+                finally {
+                    client.release();
+                }
+            }
+        };
+    }
     async close() {
         await this.pool.end();
     }

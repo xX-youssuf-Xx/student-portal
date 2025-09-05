@@ -1,37 +1,179 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '../types';
 import testService from '../services/testService';
+import type { FileFilterCallback } from 'multer';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
+import { promisify } from 'util';
 
-// Configure multer for file uploads
+declare global {
+  namespace Express {
+    interface Request {
+      files?: { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[] | undefined;
+    }
+  }
+}
+
+type FileCallback = (error: Error | null, acceptFile: boolean) => void;
+
+const unlinkAsync = promisify(fs.unlink);
+
+// Configure multer for image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    const uploadDir = 'uploads/tests/';
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, 'test-' + uniqueSuffix + ext);
   }
 });
 
-export const upload = multer({ storage });
+// File filter for images only
+const imageFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback
+) => {
+  try {
+    const allowedTypes = ['.jpg', '.jpeg', '.png', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (!file.originalname || !ext) {
+      return cb(new Error('Invalid file name or extension'));
+    }
+    
+    if (allowedTypes.includes(ext)) {
+      return cb(null, true);
+    }
+    
+    cb(new Error(`Unsupported file type. Allowed types: ${allowedTypes.join(', ')}`));
+  } catch (error) {
+    cb(error as Error);
+  }
+};
+
+// Custom middleware to handle array uploads with bracket notation
+const handleArrayUpload = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Convert fields with pattern images[0], images[1], etc. to a single images array
+    if (req.body.images) {
+      try {
+        if (typeof req.body.images === 'string') {
+          req.body.images = JSON.parse(req.body.images);
+        }
+        if (Array.isArray(req.body.images)) {
+          // If images is already an array, use it
+          return next();
+        }
+      } catch (e) {
+        console.error('Error parsing images array:', e);
+        // If parsing fails, continue with the original request
+      }
+    }
+    
+    // Handle bracket notation fields (images[0], images[1], etc.)
+    const imageFields = Object.keys(req.body)
+      .filter(key => key.startsWith('images[') && key.endsWith(']'));
+      
+    if (imageFields.length > 0) {
+      if (!req.files) {
+        req.files = [];
+      }
+      
+      // Sort the fields to maintain order
+      imageFields.sort((a, b) => {
+        const aMatch = a.match(/\[(\d+)\]/);
+        const bMatch = b.match(/\[(\d+)\]/);
+        const aNum = aMatch ? parseInt(aMatch[1] || '0', 10) : 0;
+        const bNum = bMatch ? parseInt(bMatch[1] || '0', 10) : 0;
+        return aNum - bNum;
+      });
+      
+      imageFields.forEach(field => {
+        const file = req.body[field];
+        if (file && typeof file === 'object' && 'originalname' in file) {
+          (req.files as Express.Multer.File[]).push(file as Express.Multer.File);
+        }
+      });
+      
+      // Clean up the original fields
+      imageFields.forEach(field => {
+        delete req.body[field];
+      });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Error in handleArrayUpload:', error);
+    next(error);
+  }
+};
+
+// Create multer instance with configuration
+const multerInstance = multer({ 
+  storage, 
+  fileFilter: imageFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+// Export both multer instance and our custom middleware
+export { handleArrayUpload };
+export const upload = multerInstance;
 
 class TestController {
   // Admin/Teacher endpoints
   async createTest(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.files || !Array.isArray(req.files)) {
+      res.status(400).json({ message: 'No files were uploaded' });
+      return;
+    }
+    
+    const files = req.files as Express.Multer.File[];
+    const testData = typeof req.body === 'string' 
+      ? JSON.parse(req.body) 
+      : req.body;
+    
     try {
-      const testData = req.body;
-      const pdfFile = req.file;
-      
-      if (pdfFile) {
-        testData.pdf_file_path = pdfFile.path;
-      }
-
+      // Create test first
       const test = await testService.createTest(testData);
-      res.status(201).json({ test });
+      
+      // Handle image uploads if any
+      if (files && files.length > 0) {
+        try {
+          const imagePaths = files.map((file, index) => ({
+            testId: test.id,
+            imagePath: file.path.replace(/\\/g, '/'), // Convert to forward slashes for consistency
+            displayOrder: index // Set display order based on array index
+          }));
+          
+          await testService.addTestImages(imagePaths);
+        } catch (error) {
+          console.error('Error saving test images:', error);
+          // Don't fail the whole request if image saving fails
+        }
+      }
+      
+      // Refresh test with images and return
+      const updatedTest = await testService.getTestById(test.id);
+      res.status(201).json({ test: updatedTest });
     } catch (error) {
       console.error('Error creating test:', error);
+      // Clean up uploaded files if there was an error
+      if (req.files && Array.isArray(req.files)) {
+        await Promise.all(
+          (req.files as Express.Multer.File[]).map(file => 
+            unlinkAsync(file.path).catch(console.error)
+          )
+        );
+      }
       res.status(500).json({ message: 'Internal server error' });
     }
   }
@@ -61,13 +203,26 @@ class TestController {
         return;
       }
 
+      // Get test with images
       const test = await testService.getTestById(testId);
       if (!test) {
         res.status(404).json({ message: 'Test not found' });
         return;
       }
 
-      res.json({ test });
+      // Convert image paths to URLs if needed
+      const testWithImageUrls = {
+        ...test,
+        images: test.images?.map(img => ({
+          ...img,
+          // Convert relative paths to absolute URLs if needed
+          image_url: img.image_path.startsWith('http') 
+            ? img.image_path 
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
+        }))
+      };
+
+      res.json({ test: testWithImageUrls });
     } catch (error) {
       console.error('Error getting test by ID:', error);
       res.status(500).json({ message: 'Internal server error' });
@@ -75,34 +230,79 @@ class TestController {
   }
 
   async updateTest(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const files = Array.isArray(req.files) 
+      ? req.files as Express.Multer.File[] 
+      : [];
+      
+    const testData = typeof req.body === 'string' 
+      ? JSON.parse(req.body) 
+      : req.body;
+      
+    const { id } = req.params;
+    if (!id) {
+      res.status(400).json({ message: 'Test ID is required' });
+      return;
+    }
+    
+    const testId = parseInt(id, 10);
+    if (isNaN(testId)) {
+      res.status(400).json({ message: 'Invalid test ID' });
+      return;
+    }
+    
     try {
-      const { id } = req.params;
-      if (!id) {
-        res.status(400).json({ message: 'Test ID is required' });
-        return;
-      }
-      
-      const testId = parseInt(id, 10);
-      
-      if (isNaN(testId)) {
-        res.status(400).json({ message: 'Invalid test ID' });
-        return;
+      // Handle image uploads if any
+      if (files.length > 0) {
+        try {
+          // Delete existing images if this is a replacement
+          if (testData.replaceImages) {
+            await testService.deleteTestImages(testId);
+          }
+          
+          // Add new images
+          const imagePaths = files.map((file, index) => ({
+            testId,
+            imagePath: file.path.replace(/\\/g, '/'),
+            displayOrder: index
+          }));
+          
+          await testService.addTestImages(imagePaths);
+        } catch (error) {
+          console.error('Error updating test images:', error);
+          // Clean up uploaded files if there was an error
+          await Promise.all(
+            files.map(file => unlinkAsync(file.path).catch(console.error))
+          );
+          throw error;
+        }
       }
 
-      const testData = req.body;
-      const pdfFile = req.file;
-      
-      if (pdfFile) {
-        testData.pdf_file_path = pdfFile.path;
-      }
-
-      const test = await testService.updateTest(testId, testData);
-      if (!test) {
+      // Update test data
+      const updatedTest = await testService.updateTest(testId, testData);
+      if (!updatedTest) {
+        // Clean up uploaded files if test not found
+        await Promise.all(
+          files.map(file => unlinkAsync(file.path).catch(console.error))
+        );
         res.status(404).json({ message: 'Test not found' });
         return;
       }
 
-      res.json({ test });
+      // Get the updated test with images
+      const testWithImages = await testService.getTestById(testId);
+      
+      // Convert image paths to URLs
+      const testWithImageUrls = testWithImages ? {
+        ...testWithImages,
+        images: testWithImages.images?.map(img => ({
+          ...img,
+          image_url: img.image_path.startsWith('http') 
+            ? img.image_path 
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
+        }))
+      } : null;
+      
+      res.json({ test: testWithImageUrls });
     } catch (error) {
       console.error('Error updating test:', error);
       res.status(500).json({ message: 'Internal server error' });
@@ -218,6 +418,64 @@ class TestController {
     }
   }
 
+  async getSubmissionWithTest(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id, submissionId } = req.params as { id: string; submissionId: string };
+      if (!id || !submissionId) {
+        res.status(400).json({ message: 'Test ID and Submission ID are required' });
+        return;
+      }
+      const testId = parseInt(id, 10);
+      const subId = parseInt(submissionId, 10);
+      if (isNaN(testId) || isNaN(subId)) {
+        res.status(400).json({ message: 'Invalid test or submission ID' });
+        return;
+      }
+
+      const data = await testService.getSubmissionWithTest(testId, subId);
+      if (!data) {
+        res.status(404).json({ message: 'Submission or test not found' });
+        return;
+      }
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching submission with test:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  async setManualGrades(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Submission ID is required' });
+        return;
+      }
+      const submissionId = parseInt(id, 10);
+      if (isNaN(submissionId)) {
+        res.status(400).json({ message: 'Invalid submission ID' });
+        return;
+      }
+
+      const { grades, teacher_comment } = req.body as { grades: Record<string, number>; teacher_comment?: string };
+      if (!grades || typeof grades !== 'object') {
+        res.status(400).json({ message: 'grades object is required' });
+        return;
+      }
+
+      const updated = await testService.setManualGrades(submissionId, grades, teacher_comment);
+      if (!updated) {
+        res.status(404).json({ message: 'Submission not found' });
+        return;
+      }
+
+      res.json({ submission: updated });
+    } catch (error) {
+      console.error('Error setting manual grades:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
   // Student endpoints
   async getAvailableTests(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
@@ -274,6 +532,28 @@ class TestController {
     } catch (error) {
       console.error('Error starting test:', error);
       res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  async getTestImages(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Test ID is required' });
+        return;
+      }
+      
+      const testId = parseInt(id, 10);
+      if (isNaN(testId)) {
+        res.status(400).json({ message: 'Invalid test ID' });
+        return;
+      }
+      
+      const images = await testService.getTestImages(testId);
+      res.json(images);
+    } catch (error) {
+      console.error('Error fetching test images:', error);
+      res.status(500).json({ message: 'Failed to fetch test images' });
     }
   }
 
@@ -449,6 +729,122 @@ class TestController {
       });
     } catch (error) {
       console.error('Error getting student rank:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  // Admin: batch grade physical bubble tests by invoking Python script per student
+  async gradePhysicalBatch(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Test ID is required' });
+        return;
+      }
+      const testId = parseInt(id, 10);
+      if (isNaN(testId)) {
+        res.status(400).json({ message: 'Invalid test ID' });
+        return;
+      }
+
+      // Expect multipart/form-data with fields: n_questions, students (JSON array), files (images)
+      const rawStudents = (req.body?.students ?? req.body?.students_json ?? '') as unknown;
+      const nQuestionsRaw = (req.body?.n_questions ?? req.body?.n ?? req.body?.num_questions) as unknown;
+
+      let studentsOrdered: number[] = [];
+      try {
+        if (Array.isArray(rawStudents)) {
+          studentsOrdered = (rawStudents as any[]).map((v) => Number(v)).filter((v) => !isNaN(v));
+        } else if (typeof rawStudents === 'string' && rawStudents.trim() !== '') {
+          const parsed = JSON.parse(rawStudents);
+          studentsOrdered = (parsed as any[]).map((v) => Number(v)).filter((v) => !isNaN(v));
+        }
+      } catch (e) {
+        res.status(400).json({ message: 'Invalid students list; expected JSON array of IDs' });
+        return;
+      }
+
+      const nQuestions = Number(nQuestionsRaw);
+      if (!nQuestions || isNaN(nQuestions) || nQuestions < 1 || nQuestions > 55) {
+        res.status(400).json({ message: 'Invalid n_questions; must be between 1 and 55' });
+        return;
+      }
+      if (!studentsOrdered.length) {
+        res.status(400).json({ message: 'students array is required and must not be empty' });
+        return;
+      }
+
+      const files = Array.isArray(req.files) ? (req.files as Express.Multer.File[]).map(f => ({ path: f.path, originalname: f.originalname, filename: f.filename })) : [];
+      if (!files.length) {
+        res.status(400).json({ message: 'No images uploaded' });
+        return;
+      }
+
+      // Optional: filenames are the student IDs flag
+      const namesAsIds = (() => {
+        const raw = (req.body?.names_as_ids ?? req.body?.namesAsIds ?? req.body?.use_names_as_ids);
+        if (typeof raw === 'string') return raw === 'true' || raw === '1' || raw.toLowerCase() === 'yes';
+        if (typeof raw === 'boolean') return raw;
+        return false;
+      })();
+
+      const results = await testService.gradePhysicalBatch({
+        testId,
+        nQuestions,
+        studentsOrdered,
+        files,
+        namesAsIds
+      });
+
+      res.json({ results });
+    } catch (error) {
+      console.error('Error in gradePhysicalBatch:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  // Admin: edit/update detected answers for a submission and recalculate score
+  async updateBubbleAnswers(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Submission ID is required' });
+        return;
+      }
+      const submissionId = parseInt(id, 10);
+      if (isNaN(submissionId)) {
+        res.status(400).json({ message: 'Invalid submission ID' });
+        return;
+      }
+
+      // answers can come as object or JSON string
+      let answersMap: Record<string, string> | null = null;
+      const rawAnswers = (req.body?.answers ?? req.body?.answers_map ?? req.body?.detected_answers) as unknown;
+      try {
+        if (typeof rawAnswers === 'string') {
+          answersMap = JSON.parse(rawAnswers);
+        } else if (typeof rawAnswers === 'object' && rawAnswers !== null) {
+          answersMap = rawAnswers as Record<string, string>;
+        }
+      } catch (e) {
+        answersMap = null;
+      }
+      if (!answersMap || typeof answersMap !== 'object') {
+        res.status(400).json({ message: 'answers object is required' });
+        return;
+      }
+
+      const teacherComment = typeof req.body?.teacher_comment === 'string' ? req.body.teacher_comment : undefined;
+
+      const updated = await testService.updateSubmissionAnswers(submissionId, answersMap, teacherComment);
+      if (!updated) {
+        res.status(404).json({ message: 'Submission not found' });
+        return;
+      }
+
+      res.json({ submission: updated });
+    } catch (error) {
+      console.error('Error updating bubble answers:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   }

@@ -7,6 +7,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const GRADING_ROOT = process.env.GRADING_SCRIPT_DIR
+    || path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
+app.use('/scripts/grading_service', express.static(GRADING_ROOT, {
+    index: false,
+    fallthrough: true,
+    maxAge: '1d'
+}));
+console.log(`🖼️  Serving grading images from: ${GRADING_ROOT} at /scripts/grading_service`);
 app.use('/', routes);
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => {

@@ -1,33 +1,5 @@
 /* Security and PDF Viewer Styles */
-body {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -khtml-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-  user-select: none; /* Standard property */
-}
-
-* {
-  -webkit-user-drag: none;
-  -khtml-user-drag: none;
-  -moz-user-select: none;
-  -o-user-drag: none;
-  user-select: none; /* Standard property for text selection */
-  -webkit-user-drag: none; /* Standard property for drag prevention */
-  -khtml-user-drag: none;
-}
-
-/* Disable text selection */
-.test-taking {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -khtml-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
+/* Note: Global user-select and user-drag restrictions removed to allow normal mobile behavior and screenshots as requested. */
 
 /* Disable print */
 @media print {

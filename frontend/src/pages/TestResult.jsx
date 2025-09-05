@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import TestImageViewer from '../components/TestImageViewer';
 import './TestResult.css';
 
 const TestResult = () => {
@@ -11,6 +12,7 @@ const TestResult = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAnswers, setShowAnswers] = useState(false);
+  const [showImageViewer, setShowImageViewer] = useState(false);
   const [rank, setRank] = useState(null);
   const [totalStudents, setTotalStudents] = useState(0);
 
@@ -30,6 +32,57 @@ const TestResult = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderPhysicalSheetComparison = () => {
+    // Expect same shape as bubble sheet: answers map plus bubble_image_path
+    if (!result.correct_answers_visible || !result.correct_answers_visible.answers) {
+      return null;
+    }
+
+    let studentAnswers;
+    try {
+      studentAnswers = typeof result.visible_answers === 'string' 
+        ? JSON.parse(result.visible_answers) 
+        : result.visible_answers;
+    } catch (error) {
+      console.error('Error parsing visible_answers:', error);
+      return <div>خطأ في تحميل الإجابات</div>;
+    }
+    const correctAnswers = result.correct_answers_visible.answers;
+    const API_BASE = (import.meta?.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : 'https://studentportal.egypt-tech.com';
+    const imgSrc = studentAnswers?.bubble_image_path ? `${API_BASE}/${studentAnswers.bubble_image_path}` : null;
+
+    return (
+      <div className="bubble-comparison">
+        <h3>مقارنة الإجابات</h3>
+        <div className="bubble-grid-comparison">
+          {Object.entries(correctAnswers).map(([questionNum, correctAnswer]) => {
+            const studentAnswer = studentAnswers.answers?.[questionNum];
+            const isCorrect = studentAnswer === correctAnswer;
+            return (
+              <div key={questionNum} className={`bubble-item ${isCorrect ? 'correct' : 'incorrect'}`}>
+                <span className="question-num">س{questionNum}</span>
+                <div className="answers">
+                  <span className="student-answer">إجابتك: {studentAnswer || '-'}</span>
+                  <span className="correct-answer">الصحيح: {correctAnswer}</span>
+                </div>
+                <span className={`result-icon ${isCorrect ? 'correct' : 'incorrect'}`}>
+                  {isCorrect ? '✓' : '✗'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {imgSrc && (
+          <div className="graded-bubble-image" style={{ marginTop: 16 }}>
+            <h4>صورة البابل المصححة</h4>
+            <img src={imgSrc} alt="الورقة المصححة" style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid #eee' }} />
+          </div>
+        )}
+      </div>
+    );
   };
 
   const fetchRank = async () => {
@@ -62,11 +115,14 @@ const TestResult = () => {
     }
   };
 
-  const getScoreColor = (score) => {
-    if (score >= 85) return '#4CAF50'; // Green
-    if (score >= 70) return '#FF9800'; // Orange
-    if (score >= 50) return '#FFC107'; // Yellow
-    return '#F44336'; // Red
+  // score circle colors: green >=80, yellow >=50, red <50
+  const getScoreColors = (score) => {
+    const pct = Number(score) || 0;
+    let bg = '#f2f6fb';
+    if (pct >= 80) bg = '#28a745';
+    else if (pct >= 50) bg = '#f1c40f';
+    else bg = '#e74c3c';
+    return { background: bg, color: '#000' };
   };
 
   const renderMCQComparison = () => {
@@ -86,13 +142,19 @@ const TestResult = () => {
     }
     
     const correctQuestions = result.correct_answers_visible.questions;
+    // Manual grades may be provided by backend when answers/score are visible
+    const manualGrades = result.manual_grades_visible?.grades || result.manual_grades_visible || {};
 
     return (
       <div className="answers-comparison">
         <h3>مقارنة الإجابات</h3>
         {correctQuestions.map((question, index) => {
           const studentAnswer = studentAnswers.answers?.find(a => a.id === question.id);
-          const isCorrect = studentAnswer?.answer === question.correct;
+          const openGradeRaw = manualGrades?.[question.id] ?? manualGrades?.[String(question.id)];
+          const openGrade = typeof openGradeRaw === 'number' ? openGradeRaw : null; // normalized 0..1
+          const isChoiceCorrect = studentAnswer?.answer === question.correct;
+          const isOpenCorrect = question.type === 'OPEN' ? (openGrade !== null && openGrade > 0) : false;
+          const isCorrect = question.type === 'OPEN' ? isOpenCorrect : isChoiceCorrect;
           
           return (
             <div key={question.id} className={`question-comparison ${isCorrect ? 'correct' : 'incorrect'}`}>
@@ -150,6 +212,10 @@ const TestResult = () => {
                   <div className="student-answer">
                     <h5>إجابتك:</h5>
                     <p>{studentAnswer?.answer || 'لم تجب'}</p>
+                  </div>
+                  <div className="open-grade">
+                    <h5>التقييم:</h5>
+                    <p>{openGrade !== null ? `${Math.round(openGrade * 100)}%` : 'لم يتم التقييم بعد'}</p>
                   </div>
                   {result.teacher_comment && (
                     <div className="teacher-feedback">
@@ -217,13 +283,43 @@ const TestResult = () => {
     return <div className="error">لم يتم العثور على النتيجة</div>;
   }
 
+  const toggleImageViewer = () => {
+    setShowImageViewer(!showImageViewer);
+  };
+
   return (
     <div className="test-result">
+      {showImageViewer && (
+        <div className="test-image-viewer-modal">
+          <div className="test-image-viewer-header">
+            <h3>عرض صور الاختبار</h3>
+            <button 
+              className="close-button" 
+              onClick={toggleImageViewer}
+              aria-label="إغلاق معرض الصور"
+            >
+              &times;
+            </button>
+          </div>
+          <div className="test-image-viewer-content">
+            <TestImageViewer testId={testId} />
+          </div>
+        </div>
+      )}
       <div className="result-header">
+        <div className="header-content">
+          <h1>نتيجة الاختبار</h1>
+          <button 
+            className="view-images-button"
+            onClick={toggleImageViewer}
+            title="عرض صور الاختبار"
+          >
+            <i className="fas fa-images"></i> عرض صور الاختبار
+          </button>
+        </div>
         <button className="back-btn" onClick={() => navigate('/student/dashboard')}>
           ← العودة للوحة التحكم
         </button>
-        <h1>نتيجة الاختبار</h1>
       </div>
 
       <div className="result-content">
@@ -239,11 +335,16 @@ const TestResult = () => {
         {/* Score Display */}
         {result.visible_score !== null && (
           <div className="score-card">
-            <div className="score-circle" style={{ borderColor: getScoreColor(result.visible_score) }}>
-              <span className="score-value" style={{ color: getScoreColor(result.visible_score) }}>
-                {result.visible_score}%
-              </span>
-            </div>
+            {(() => {
+              const colors = getScoreColors(result.visible_score);
+              return (
+                <div className="score-circle" style={{ background: colors.background }}>
+                  <span className="score-value" style={{ color: colors.color }}>
+                    {result.visible_score}%
+                  </span>
+                </div>
+              );
+            })()}
             <div className="score-details">
               <h3>درجتك</h3>
               <p className="score-description">
@@ -295,12 +396,7 @@ const TestResult = () => {
           <div className="answers-section">
             {result.test_type === 'MCQ' && renderMCQComparison()}
             {result.test_type === 'BUBBLE_SHEET' && renderBubbleSheetComparison()}
-            {result.test_type === 'PHYSICAL_SHEET' && (
-              <div className="physical-sheet-result">
-                <h3>ورقة الإجابة المرفوعة</h3>
-                <p>تم رفع ورقة الإجابة وتصحيحها من قبل المعلم</p>
-              </div>
-            )}
+            {result.test_type === 'PHYSICAL_SHEET' && renderPhysicalSheetComparison()}
           </div>
         )}
 

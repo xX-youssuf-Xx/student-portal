@@ -71,4 +71,12 @@ export interface TestAnswer {
     created_at: Date;
     updated_at: Date;
 }
+export interface TestImage {
+    id: number;
+    test_id: number;
+    image_path: string;
+    display_order: number;
+    created_at: Date;
+    updated_at: Date;
+}
 //# sourceMappingURL=index.d.ts.map

@@ -1,0 +1,2 @@
+# Ignore Python virtual environment for grading service
+scripts/grading_service/.venv/

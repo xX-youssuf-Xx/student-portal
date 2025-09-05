@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import { Button } from 'react-bootstrap';
 import './TestManagement.css';
 
 const TestManagement = () => {
@@ -60,14 +61,14 @@ const TestManagement = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('ar-EG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatDate = (iso) => {
+    if (!iso) return '';
+    // Accept both 'YYYY-MM-DDTHH:mm' and 'YYYY-MM-DD HH:mm' and optional seconds/timezone
+    const s = String(iso);
+    const mDate = s.match(/^(\d{4})[-](\d{2})[-](\d{2})[T ](\d{2}):(\d{2})/);
+    if (!mDate) return iso;
+    const [_, y, mo, d, h, mi] = mDate;
+    return `${y}-${mo}-${d} ${h}:${mi}`;
   };
 
   const getTestTypeLabel = (type) => {
@@ -223,25 +224,123 @@ const TestManagement = () => {
   );
 };
 
+// Drag and Drop Image Component
+const DraggableImage = ({ image, index, onRemove, onDragStart, onDragOver, onDrop }) => (
+  <div 
+    draggable
+    onDragStart={onDragStart}
+    onDragOver={onDragOver}
+    onDrop={onDrop}
+    style={{
+      padding: '10px',
+      margin: '5px 0',
+      border: '1px solid #ddd',
+      borderRadius: '4px',
+      display: 'flex',
+      alignItems: 'center',
+      cursor: 'move',
+      backgroundColor: '#fff'
+    }}
+  >
+    <div style={{ marginRight: '10px', fontWeight: 'bold' }}>{index + 1}.</div>
+    <img 
+      src={image.preview || image.url} 
+      alt={`Question ${index + 1}`} 
+      style={{ 
+        maxWidth: '100px', 
+        maxHeight: '100px',
+        objectFit: 'contain',
+        marginRight: '10px'
+      }} 
+    />
+    <Button 
+      variant="danger" 
+      size="sm" 
+      onClick={() => onRemove(index)}
+      style={{ marginLeft: 'auto' }}
+    >
+      Remove
+    </Button>
+  </div>
+);
+
 // Test Creation/Edit Modal Component
 const TestModal = ({ test, onClose, onSave }) => {
+  // Display helper: extract YYYY-MM-DDTHH:mm as-is from ISO string (no timezone shift)
+  const isoToDatetimeLocalPreserve = (iso) => {
+    if (!iso) return '';
+    const m = String(iso).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+    return m ? `${m[1]}T${m[2]}` : '';
+  };
+
   const [formData, setFormData] = useState({
     title: test?.title || '',
     grade: test?.grade || '3HIGH',
     student_group: test?.student_group || '',
     test_type: test?.test_type || 'MCQ',
-    start_time: test?.start_time ? new Date(test.start_time).toISOString().slice(0, 16) : '',
-    end_time: test?.end_time ? new Date(test.end_time).toISOString().slice(0, 16) : '',
+    start_time: test?.start_time ? isoToDatetimeLocalPreserve(test.start_time) : '',
+    end_time: test?.end_time ? isoToDatetimeLocalPreserve(test.end_time) : '',
     duration_minutes: test?.duration_minutes || '',
     view_type: test?.view_type || 'IMMEDIATE',
     questions: test?.correct_answers?.questions || [],
     bubbleAnswers: test?.correct_answers?.answers || {}
   });
   
-  // Debug: Log form data changes
-  console.log('Form data student_group:', formData.student_group);
-  const [pdfFile, setPdfFile] = useState(null);
+  const [images, setImages] = useState(test?.images?.map(img => ({
+    id: img.id || `img-${Date.now()}`,
+    url: img.url,
+    file: null
+  })) || []);
+  
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Handle image upload
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    const newImages = files.map(file => ({
+      id: `img-${Date.now()}-${file.name}`,
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+    setImages([...images, ...newImages]);
+    // Clear the input value so selecting the same files again will retrigger onChange
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+  // Handle image removal
+  const handleRemoveImage = (index) => {
+    const newImages = [...images];
+    newImages.splice(index, 1);
+    setImages(newImages);
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e, index) => {
+    setDraggedItem(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.currentTarget);
+  };
+
+  const handleDragOver = (index) => {
+    if (draggedItem === null || draggedItem === index) return;
+    
+    const newImages = [...images];
+    const draggedImage = newImages[draggedItem];
+    newImages.splice(draggedItem, 1);
+    newImages.splice(index, 0, draggedImage);
+    
+    setDraggedItem(index);
+    setImages(newImages);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -251,6 +350,16 @@ const TestModal = ({ test, onClose, onSave }) => {
       console.log('Submitting form with student_group:', formData.student_group);
       const formDataToSend = new FormData();
       
+      // Helper: preserve local wall time by sending a naive datetime string (no timezone/Z)
+      // 'YYYY-MM-DDTHH:mm' -> 'YYYY-MM-DDTHH:mm:00'
+      const toUtcIso = (val) => {
+        if (!val) return val;
+        // Ensure we only have YYYY-MM-DDTHH:mm
+        const base = String(val).slice(0, 16);
+        // Return without timezone designator so DB stores the wall time as-is
+        return `${base}:00`;
+      };
+
       // Add basic fields
       Object.entries(formData).forEach(([key, value]) => {
         if (key === 'questions' || key === 'bubbleAnswers') return;
@@ -267,7 +376,11 @@ const TestModal = ({ test, onClose, onSave }) => {
           return;
         }
         if (value !== '' && value !== null) {
-          formDataToSend.append(key, value);
+          if (key === 'start_time' || key === 'end_time') {
+            formDataToSend.append(key, toUtcIso(value));
+          } else {
+            formDataToSend.append(key, value);
+          }
         }
       });
 
@@ -283,10 +396,20 @@ const TestModal = ({ test, onClose, onSave }) => {
         formDataToSend.append('correct_answers', JSON.stringify(correctAnswers));
       }
 
-      // Add PDF file if provided
-      if (pdfFile) {
-        formDataToSend.append('pdf', pdfFile);
-      }
+      // Always send an explicit empty pdf field
+      formDataToSend.append('pdf', '');
+
+      // Add images
+      images.forEach((image, index) => {
+        if (image.file) {
+          formDataToSend.append(`images[${index}]`, image.file);
+        } else if (image.url) {
+          // If it's an existing image (has URL but no file), send the URL
+          formDataToSend.append(`existing_images[${index}]`, image.url);
+        }
+      });
+
+      // Do not send image_order here. Image ordering is managed server-side by display_order.
 
       if (test) {
         await axios.put(`/tests/${test.id}`, formDataToSend, {
@@ -437,15 +560,61 @@ const TestModal = ({ test, onClose, onSave }) => {
             </div>
           </div>
 
-          {/* PDF Upload for Bubble Sheet and Physical Sheet */}
-          {(formData.test_type === 'BUBBLE_SHEET' || formData.test_type === 'PHYSICAL_SHEET') && (
-            <div className="form-group">
-              <label>رفع ملف PDF للامتحان</label>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => setPdfFile(e.target.files[0])}
-              />
+          {/* Image Upload Section */}
+          <div className="section-header">
+            <h3>صور الاختبار</h3>
+          </div>
+          
+          {/* Hide image upload for MCQ tests (first option). When visible, make the dropzone more distinguished */}
+          {formData.test_type !== 'MCQ' && (
+            <div className="mb-4">
+              <label
+                htmlFor="image-upload"
+                className="dropzone p-4 rounded-lg text-center cursor-pointer mb-4"
+                style={{ border: '3px dashed #1e90ff', backgroundColor: '#f0f8ff' }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleImageUpload({ target: { files: e.dataTransfer.files } });
+                }}
+                onClick={(e) => {
+                  if (submitting) { e.preventDefault(); e.stopPropagation(); }
+                }}
+              >
+                <input
+                  id="image-upload"
+                  type="file"
+                  style={{ display: 'none' }}
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  ref={fileInputRef}
+                />
+                <p className="text-gray-600">اسحب الصور هنا أو انقر للرفع</p>
+                <p className="text-sm text-gray-500">يمكنك رفع عدة صور في المرة الواحدة</p>
+              </label>
+
+              {/* Image Preview and Reordering */}
+              <div className="space-y-2">
+                {images.map((image, index) => (
+                  <DraggableImage
+                    key={image.id}
+                    image={image}
+                    index={index}
+                    onRemove={handleRemoveImage}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      handleDragOver(index);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDragEnd();
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
@@ -581,22 +750,188 @@ const TestModal = ({ test, onClose, onSave }) => {
 // Submissions Modal Component
 const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const [gradingSubmission, setGradingSubmission] = useState(null);
-  const [gradeData, setGradeData] = useState({ score: '', comment: '' });
+  const [manualDetail, setManualDetail] = useState(null); // { test, submission, correct_answers }
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [gradeData, setGradeData] = useState({ comment: '', gradesPct: {} }); // gradesPct keyed by question id (0..100)
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [localSubs, setLocalSubs] = useState(submissions || []);
+  const [editingAnswersId, setEditingAnswersId] = useState(null);
+  const [answersDetail, setAnswersDetail] = useState(null); // { test, submission, correct_answers }
+  const [answersMap, setAnswersMap] = useState({});
+  const [answersCount, setAnswersCount] = useState(50);
 
-  const handleGradeSubmission = async (submissionId) => {
+  useEffect(() => {
+    setLocalSubs(submissions || []);
+  }, [submissions]);
+
+  const refreshSubmissions = async () => {
     try {
-      await axios.patch(`/submissions/${submissionId}/grade`, {
-        score: parseFloat(gradeData.score),
-        teacher_comment: gradeData.comment
-      });
-      
+      const res = await axios.get(`/tests/${test.id}/submissions`);
+      setLocalSubs(res.data.submissions || []);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  // Open detailed grading view: fetch submission with test and correct answers
+  const openManualGrading = async (submission) => {
+    setGradingSubmission(submission.id);
+    setLoadingDetail(true);
+    setManualDetail(null);
+    setGradeData({ comment: submission.teacher_comment || '', gradesPct: {} });
+    try {
+      const res = await axios.get(`/tests/${test.id}/submissions/${submission.id}`);
+      const detail = res.data || {};
+
+      // Extract existing manual grades if present
+      let existingGrades = {};
+      try {
+        const mg = detail?.submission?.manual_grades;
+        if (mg) {
+          const obj = typeof mg === 'string' ? JSON.parse(mg) : mg;
+          if (obj && obj.grades) existingGrades = obj.grades;
+        }
+      } catch (e) {
+        existingGrades = {};
+      }
+
+      // Convert 0..1 to 0..100 for UI
+      const gradesPct = Object.fromEntries(
+        Object.entries(existingGrades).map(([k, v]) => [k, Math.round(Number(v) * 10000) / 100])
+      );
+
+      setManualDetail(detail);
+      setGradeData(prev => ({ ...prev, gradesPct }));
+    } catch (error) {
+      console.error('Error fetching submission for grading:', error);
+      alert('تعذر تحميل بيانات المشاركة للتصحيح اليدوي');
       setGradingSubmission(null);
-      setGradeData({ score: '', comment: '' });
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const handleManualGradeChange = (qid, value) => {
+    // clamp 0..100
+    let v = Number(value);
+    if (isNaN(v)) v = 0;
+    v = Math.max(0, Math.min(100, v));
+    setGradeData(prev => ({
+      ...prev,
+      gradesPct: { ...prev.gradesPct, [qid]: v }
+    }));
+  };
+
+  const handleSaveManualGrades = async () => {
+    if (!gradingSubmission) return;
+    try {
+      // Convert 0..100 to 0..1
+      const grades = Object.fromEntries(
+        Object.entries(gradeData.gradesPct).map(([k, v]) => [k, Math.max(0, Math.min(1, Number(v) / 100))])
+      );
+
+      await axios.patch(`/submissions/${gradingSubmission}/manual-grades`, {
+        grades,
+        teacher_comment: manualDetail?.test?.test_type === 'PHYSICAL_SHEET' ? null : (gradeData.comment || null)
+      });
+
+      // Reset and notify
+      setGradingSubmission(null);
+      setManualDetail(null);
+      setGradeData({ comment: '', gradesPct: {} });
       onGradeUpdate();
     } catch (error) {
-      console.error('Error grading submission:', error);
-      alert('حدث خطأ في تقدير الدرجة');
+      console.error('Error saving manual grades:', error);
+      alert('حدث خطأ في حفظ الدرجات اليدوية');
     }
+  };
+
+  const handleCancelGrading = () => {
+    setGradingSubmission(null);
+    setManualDetail(null);
+    setGradeData({ comment: '', gradesPct: {} });
+  };
+
+  // Render helper: MCQ questions list with OPEN grading inputs
+  const renderManualGradingForm = (detail) => {
+    if (!detail) return null;
+    const qData = detail.correct_answers && detail.correct_answers.questions ? detail.correct_answers.questions : [];
+    const studentAnswers = (detail.submission?.answers && detail.submission.answers.answers) ? detail.submission.answers.answers : [];
+
+    return (
+      <div className="grading-form">
+        <div className="questions-list">
+          {qData.length === 0 ? (
+            <p>لا توجد أسئلة متاحة للتصحيح.</p>
+          ) : (
+            qData.map((q, idx) => {
+              const stAns = studentAnswers.find(a => a.id === q.id);
+              const isOpen = q.type === 'OPEN';
+              const currentPct = gradeData.gradesPct[q.id] ?? '';
+              return (
+                <div key={q.id} className="question-item" style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, marginBottom: 10 }}>
+                  <div className="question-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ margin: 0 }}>س{idx + 1}</h4>
+                    <span className="badge" style={{ background: '#f5f5f5', padding: '2px 8px', borderRadius: 4 }}>{isOpen ? 'سؤال مفتوح' : 'اختيار من متعدد'}</span>
+                  </div>
+                  <div className="question-body" style={{ marginTop: 8 }}>
+                    {q.text && <p style={{ whiteSpace: 'pre-wrap' }}>{q.text}</p>}
+                    {!isOpen && (
+                      <div className="mcq-block" style={{ fontSize: 14, color: '#444' }}>
+                        <div>إجابة الطالب: <strong>{stAns ? stAns.answer : '-'}</strong></div>
+                        <div>الإجابة الصحيحة: <strong>{q.correct ?? '-'}</strong></div>
+                      </div>
+                    )}
+                    {isOpen && (
+                      <div className="open-block" style={{ marginTop: 8 }}>
+                        <div className="student-answer" style={{ marginBottom: 8 }}>
+                          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: 4 }}>إجابة الطالب</label>
+                          <div style={{ background: '#fafafa', padding: 8, borderRadius: 4, minHeight: 40 }}>
+                            {stAns && stAns.answer ? (
+                              <span style={{ whiteSpace: 'pre-wrap' }}>{stAns.answer}</span>
+                            ) : (
+                              <em>لا توجد إجابة</em>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grade-input">
+                          <label>درجة السؤال (%)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={currentPct}
+                            onChange={(e) => handleManualGradeChange(q.id, e.target.value)}
+                            placeholder="0 - 100"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Hide comment for physical bubble tests */}
+        {detail?.test?.test_type !== 'PHYSICAL_SHEET' && (
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label>تعليق المعلم (اختياري)</label>
+            <textarea
+              value={gradeData.comment}
+              onChange={(e) => setGradeData(prev => ({ ...prev, comment: e.target.value }))}
+            />
+          </div>
+        )}
+
+        <div className="form-actions" style={{ marginTop: 12 }}>
+          <button className="btn-secondary" onClick={handleCancelGrading}>إلغاء</button>
+          <button className="btn-primary" onClick={handleSaveManualGrades}>حفظ الدرجات</button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -607,11 +942,19 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
+        {test.test_type === 'PHYSICAL_SHEET' && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+            <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
+              تصحيح جماعي للبابل
+            </button>
+          </div>
+        )}
+
         <div className="submissions-list">
-          {submissions.length === 0 ? (
+          {localSubs.length === 0 ? (
             <p>لا توجد مشاركات</p>
           ) : (
-            submissions.map(submission => (
+            localSubs.map(submission => (
               <div key={submission.id} className="submission-item">
                 <div className="student-info">
                   <h4>{submission.student_name}</h4>
@@ -634,54 +977,82 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                 </div>
 
                 <div className="submission-actions">
-                  {!submission.graded && (
-                    <button 
-                      className="btn-primary"
-                      onClick={() => {
-                        setGradingSubmission(submission.id);
-                        setGradeData({ 
-                          score: submission.score || '', 
-                          comment: submission.teacher_comment || '' 
-                        });
+                  <button 
+                    className="btn-primary"
+                    onClick={() => openManualGrading(submission)}
+                  >
+                    عرض/تصحيح يدوي
+                  </button>
+                  {test.test_type === 'PHYSICAL_SHEET' && (
+                    <button
+                      className="btn-outline"
+                      style={{ marginInlineStart: 8 }}
+                      onClick={async () => {
+                        setEditingAnswersId(submission.id);
+                        try {
+                          const res = await axios.get(`/tests/${test.id}/submissions/${submission.id}`);
+                          const detail = res.data || {};
+                          setAnswersDetail(detail);
+                          const detected = (detail?.submission?.answers && detail.submission.answers.answers) ? detail.submission.answers.answers : {};
+                          setAnswersMap(detected || {});
+                          const count = detail?.correct_answers?.answers ? Object.keys(detail.correct_answers.answers).length : 50;
+                          setAnswersCount(count || 50);
+                        } catch (e) {
+                          alert('تعذر تحميل الإجابات الحالية');
+                          setEditingAnswersId(null);
+                        }
                       }}
                     >
-                      تقدير الدرجة
+                      تعديل الإجابات
                     </button>
                   )}
                 </div>
 
                 {gradingSubmission === submission.id && (
                   <div className="grading-form">
-                    <div className="form-group">
-                      <label>الدرجة (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={gradeData.score}
-                        onChange={(e) => setGradeData(prev => ({ ...prev, score: e.target.value }))}
-                      />
+                    {loadingDetail && <p>جاري تحميل بيانات التصحيح...</p>}
+                    {!loadingDetail && manualDetail && renderManualGradingForm(manualDetail)}
+                  </div>
+                )}
+
+                {editingAnswersId === submission.id && (
+                  <div className="grading-form" style={{ marginTop: 10 }}>
+                    <h4>تعديل إجابات البابل</h4>
+                    <div className="bubble-answers-grid">
+                      {Array.from({ length: answersCount }, (_, i) => i + 1).map((qnum) => (
+                        <div key={qnum} className="bubble-answer-item">
+                          <label>س{qnum}</label>
+                          <select
+                            value={answersMap[qnum] || ''}
+                            onChange={(e) => setAnswersMap(prev => ({ ...prev, [qnum]: e.target.value }))}
+                          >
+                            <option value="">-</option>
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                            <option value="D">D</option>
+                          </select>
+                        </div>
+                      ))}
                     </div>
-                    <div className="form-group">
-                      <label>تعليق (اختياري)</label>
-                      <textarea
-                        value={gradeData.comment}
-                        onChange={(e) => setGradeData(prev => ({ ...prev, comment: e.target.value }))}
-                      />
-                    </div>
-                    <div className="form-actions">
-                      <button 
-                        className="btn-secondary"
-                        onClick={() => setGradingSubmission(null)}
-                      >
-                        إلغاء
-                      </button>
-                      <button 
+                    <div className="form-actions" style={{ marginTop: 8 }}>
+                      <button className="btn-secondary" onClick={() => setEditingAnswersId(null)}>إلغاء</button>
+                      <button
                         className="btn-primary"
-                        onClick={() => handleGradeSubmission(submission.id)}
+                        onClick={async () => {
+                          try {
+                            await axios.patch(`/submissions/${submission.id}/answers`, {
+                              answers: answersMap
+                            });
+                            setEditingAnswersId(null);
+                            await refreshSubmissions();
+                            onGradeUpdate && onGradeUpdate();
+                          } catch (e) {
+                            alert('فشل حفظ الإجابات');
+                          }
+                        }}
                       >
-                        حفظ الدرجة
+                        حفظ الإجابات
                       </button>
                     </div>
                   </div>
@@ -689,6 +1060,119 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
               </div>
             ))
           )}
+        </div>
+
+        {showBatchModal && (
+          <BatchGradeModal
+            test={test}
+            submissions={localSubs}
+            onClose={() => setShowBatchModal(false)}
+            onDone={async () => { setShowBatchModal(false); await refreshSubmissions(); onGradeUpdate && onGradeUpdate(); }}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Batch grading modal for physical bubble tests
+const BatchGradeModal = ({ test, submissions, onClose, onDone }) => {
+  const [ordered, setOrdered] = useState(() => (submissions || []).map(s => ({ id: s.student_id, name: s.student_name })));
+  const [files, setFiles] = useState([]);
+  const [nQuestions, setNQuestions] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const namesAsIds = true; // Always use filenames as student IDs
+
+  const move = (index, dir) => {
+    const ni = index + dir;
+    if (ni < 0 || ni >= ordered.length) return;
+    const arr = [...ordered];
+    const tmp = arr[index];
+    arr[index] = arr[ni];
+    arr[ni] = tmp;
+    setOrdered(arr);
+  };
+
+  const onFileChange = (e) => {
+    setFiles(Array.from(e.target.files || []));
+  };
+
+  const handleSubmit = async () => {
+    try {
+      if (files.length === 0) {
+        alert('يرجى رفع صور الإجابات أولاً');
+        return;
+      }
+      if (!nQuestions || nQuestions < 1 || nQuestions > 55) {
+        alert('عدد الأسئلة يجب أن يكون بين 1 و 55');
+        return;
+      }
+      // Quick client-side check: warn if any filename lacks a numeric ID (always enforced)
+      const bad = files.filter(f => !(/(\d+)/).test(f.name || ''));
+      if (bad.length > 0) {
+        const list = bad.map(b => b.name).join(', ');
+        if (!window.confirm(`بعض الملفات لا تحتوي على أرقام في أسمائها:
+${list}
+هل تريد المتابعة؟ سيتم التحقق بدقة في السيرفر.`)) return;
+      }
+      setSubmitting(true);
+      const form = new FormData();
+      form.append('n_questions', String(nQuestions));
+      form.append('students', JSON.stringify(ordered.map(o => o.id)));
+      form.append('names_as_ids', 'true');
+      files.forEach(f => form.append('files', f));
+      await axios.post(`/tests/${test.id}/grade-physical-batch`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      alert('تم إنهاء التصحيح الجماعي');
+      await onDone();
+    } catch (e) {
+      console.error(e);
+      alert('فشل التصحيح الجماعي');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h2>تصحيح جماعي للبابل - {test.title}</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="form-grid">
+          <div className="form-group">
+            <label>عدد الأسئلة</label>
+            <input type="number" min="1" max="55" value={nQuestions} onChange={(e) => setNQuestions(parseInt(e.target.value || '0', 10) || 0)} />
+          </div>
+          <div className="form-group">
+            <label>رفع الصور (يجب تسمية كل صورة برقم الطالب)</label>
+            <input type="file" accept="image/*" multiple onChange={onFileChange} />
+            <small>سيتم مطابقة كل صورة تلقائياً بالطالب الذي يطابق رقم اسم الملف</small>
+            {files.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                تم اختيار {files.length} صورة
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="section-header">
+          <h3>ترتيب الطلاب</h3>
+        </div>
+        <div>
+          {ordered.map((o, idx) => (
+            <div key={o.id} style={{ display: 'flex', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+              <div style={{ width: 32, textAlign: 'center' }}>{idx + 1}</div>
+              <div style={{ flex: 1 }}>{o.name} (ID: {o.id})</div>
+              <div>
+                <button className="btn-outline" onClick={() => move(idx, -1)} disabled={idx === 0}>أعلى</button>
+                <button className="btn-outline" onClick={() => move(idx, 1)} disabled={idx === ordered.length - 1} style={{ marginInlineStart: 6 }}>أسفل</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="form-actions" style={{ marginTop: 10 }}>
+          <button className="btn-secondary" onClick={onClose}>إلغاء</button>
+          <button className="btn-primary" onClick={handleSubmit} disabled={submitting}>{submitting ? 'جارٍ التصحيح...' : 'بدء التصحيح'}</button>
         </div>
       </div>
     </div>

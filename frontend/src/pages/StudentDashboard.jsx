@@ -23,7 +23,15 @@ const StudentDashboard = () => {
       ]);
       
       setAvailableTests(availableResponse.data.tests || []);
-      setTestHistory(historyResponse.data.history || []);
+      // sort available tests by start_time descending (newest first)
+      const available = (availableResponse.data.tests || []).slice();
+      available.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+      setAvailableTests(available);
+
+      // sort test history by submitted_at descending (newest first)
+      const history = (historyResponse.data.history || []).slice();
+      history.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+      setTestHistory(history);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {

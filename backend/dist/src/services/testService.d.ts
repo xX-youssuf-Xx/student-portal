@@ -1,4 +1,4 @@
-import type { Test, TestAnswer } from '../types';
+import type { Test, TestAnswer, TestImage } from '../types';
 interface CreateTestData {
     title: string;
     grade: string;
@@ -13,9 +13,38 @@ interface CreateTestData {
     view_permission?: boolean;
 }
 declare class TestService {
+    private normalizeSubmission;
+    gradePhysicalBatch(params: {
+        testId: number;
+        nQuestions: number;
+        studentsOrdered: number[];
+        files: Array<{
+            path: string;
+            originalname?: string;
+            filename?: string;
+        }>;
+        namesAsIds?: boolean;
+    }): Promise<Array<{
+        student_id: number;
+        submission_id: number;
+        score: number | null;
+        output_dir: string;
+    }>>;
+    updateSubmissionAnswers(submissionId: number, answersMap: Record<string, string>, teacherComment?: string): Promise<any | null>;
     createTest(testData: CreateTestData): Promise<Test>;
     getAllTests(): Promise<Test[]>;
-    getTestById(testId: number): Promise<Test | null>;
+    getTestById(testId: number): Promise<(Test & {
+        images?: Array<{
+            id: number;
+            image_path: string;
+            display_order: number;
+        }>;
+    }) | null>;
+    getTestImages(testId: number | string): Promise<Array<{
+        id: number;
+        image_path: string;
+        display_order: number;
+    }>>;
     updateTest(testId: number, testData: Partial<CreateTestData>): Promise<Test | null>;
     deleteTest(testId: number): Promise<boolean>;
     updateViewPermission(testId: number, viewPermission: boolean): Promise<Test | null>;
@@ -27,8 +56,20 @@ declare class TestService {
     startTest(testId: number, studentId: number): Promise<any | null>;
     submitTest(testId: number, studentId: number, answers: any, isDraft?: boolean): Promise<TestAnswer | null>;
     getTestResult(testId: number, studentId: number): Promise<any | null>;
+    getSubmissionWithTest(testId: number, submissionId: number): Promise<any | null>;
+    private computeScoreWithManual;
+    setManualGrades(submissionId: number, grades: Record<string, number>, teacherComment?: string): Promise<any | null>;
     uploadBubbleSheet(testId: number, studentId: number, filePath: string): Promise<TestAnswer | null>;
     private calculateScore;
+    addTestImages(images: Array<{
+        testId: number;
+        imagePath: string;
+        displayOrder: number;
+    }>): Promise<TestImage[]>;
+    private isValidTestId;
+    updateTestImageOrder(testId: number, imageIds: number[]): Promise<void>;
+    deleteTestImage(imageId: number): Promise<boolean>;
+    deleteTestImages(testId: number): Promise<boolean>;
 }
 declare const _default: TestService;
 export default _default;

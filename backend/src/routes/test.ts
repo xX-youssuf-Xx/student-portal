@@ -1,18 +1,54 @@
 import { Router } from 'express';
-import testController, { upload } from '../controllers/testController';
+import testController, { upload, handleArrayUpload } from '../controllers/testController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
 // Admin/Teacher routes (protected)
-router.post('/tests', authenticateToken, requireAdmin, upload.single('pdf'), testController.createTest);
+router.post('/tests', 
+  authenticateToken, 
+  requireAdmin, 
+  upload.any(), // Handle any file uploads
+  handleArrayUpload, // Process array uploads
+  testController.createTest
+);
+
 router.get('/tests', authenticateToken, requireAdmin, testController.getAllTests);
 router.get('/tests/:id', authenticateToken, requireAdmin, testController.getTestById);
-router.put('/tests/:id', authenticateToken, requireAdmin, upload.single('pdf'), testController.updateTest);
+
+router.put('/tests/:id', 
+  authenticateToken, 
+  requireAdmin, 
+  upload.any(), // Handle any file uploads
+  handleArrayUpload, // Process array uploads
+  testController.updateTest
+);
 router.delete('/tests/:id', authenticateToken, requireAdmin, testController.deleteTest);
 router.patch('/tests/:id/view-permission', authenticateToken, requireAdmin, testController.updateViewPermission);
 router.get('/tests/:id/submissions', authenticateToken, requireAdmin, testController.getTestSubmissions);
 router.patch('/submissions/:id/grade', authenticateToken, requireAdmin, testController.gradeSubmission);
+// Admin manual per-question grading
+router.get('/tests/:id/submissions/:submissionId', authenticateToken, requireAdmin, testController.getSubmissionWithTest);
+router.patch('/submissions/:id/manual-grades', authenticateToken, requireAdmin, testController.setManualGrades);
+
+// Admin: Batch grade physical bubble sheets
+// Expect: multipart/form-data with field 'n_questions', 'students' (JSON array of student IDs in order),
+// and image files (named arbitrarily, the order will be inferred from filename numbers or upload order).
+router.post(
+  '/tests/:id/grade-physical-batch',
+  authenticateToken,
+  requireAdmin,
+  upload.any(),
+  testController.gradePhysicalBatch
+);
+
+// Admin: Edit detected answers for a single submission and recalculate score
+router.patch(
+  '/submissions/:id/answers',
+  authenticateToken,
+  requireAdmin,
+  testController.updateBubbleAnswers
+);
 
 // Student routes (protected)
 router.get('/available-tests', authenticateToken, testController.getAvailableTests);
@@ -21,6 +57,7 @@ router.get('/tests/:id/start', authenticateToken, testController.startTest);
 router.get('/tests/:id/questions', authenticateToken, testController.getTestQuestions);
 router.post('/tests/:id/submit', authenticateToken, testController.submitTest);
 router.get('/tests/:id/result', authenticateToken, testController.getTestResult);
+router.get('/tests/:id/images', authenticateToken, testController.getTestImages);
 router.post('/tests/:id/upload-bubble-sheet', authenticateToken, upload.single('bubbleSheet'), testController.uploadBubbleSheet);
 router.get('/tests/:id/submissions/rank', authenticateToken, testController.getStudentRank);
 

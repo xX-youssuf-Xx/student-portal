@@ -6,18 +6,29 @@ import database from './src/services/database';
 
 const app = express();
 
-// Middleware
+// Middleware 
 app.use(cors());
 app.use(express.json());
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve grading images (annotated bubble outputs) from external scripts directory
+// GRADING_SCRIPT_DIR takes precedence; fallback assumes backend/ is cwd and scripts/ is sibling
+const GRADING_ROOT = process.env.GRADING_SCRIPT_DIR
+  || path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
+app.use('/scripts/grading_service', express.static(GRADING_ROOT, {
+  index: false,
+  fallthrough: true,
+  maxAge: '1d'
+}));
+console.log(`🖼️  Serving grading images from: ${GRADING_ROOT} at /scripts/grading_service`);
+
 // Routes
 app.use('/', routes);
 
 const PORT = process.env.PORT || 3001;
-
+ 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 API available at http://localhost:${PORT}`);
