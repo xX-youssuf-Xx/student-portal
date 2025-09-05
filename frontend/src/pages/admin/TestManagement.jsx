@@ -763,6 +763,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [gradeData, setGradeData] = useState({ comment: '', gradesPct: {} }); // gradesPct keyed by question id (0..100)
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showIncludeModal, setShowIncludeModal] = useState(false);
   const [localSubs, setLocalSubs] = useState(submissions || []);
   const [editingAnswersId, setEditingAnswersId] = useState(null);
   const [answersDetail, setAnswersDetail] = useState(null); // { test, submission, correct_answers }
@@ -959,9 +960,14 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
 
         {test.test_type === 'PHYSICAL_SHEET' && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-            <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
-              تصحيح جماعي للبابل
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
+                تصحيح جماعي للبابل
+              </button>
+              <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
+                إضافة طلاب للاختبار
+              </button>
+            </div>
           </div>
         )}
 
@@ -1085,6 +1091,13 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
             onDone={async () => { setShowBatchModal(false); await refreshSubmissions(); onGradeUpdate && onGradeUpdate(); }}
           />
         )}
+        {showIncludeModal && (
+          <IncludeStudentsModal
+            test={test}
+            onClose={() => setShowIncludeModal(false)}
+            onDone={async () => { setShowIncludeModal(false); await refreshSubmissions(); onGradeUpdate && onGradeUpdate(); }}
+          />
+        )}
       </div>
     </div>
   );
@@ -1097,6 +1110,23 @@ const BatchGradeModal = ({ test, submissions, onClose, onDone }) => {
   const [nQuestions, setNQuestions] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const namesAsIds = true; // Always use filenames as student IDs
+  const [selectedSet, setSelectedSet] = useState(() => new Set((submissions || []).map(s => s.student_id)));
+
+  const toggleSelect = (id) => {
+    setSelectedSet(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const selectAll = (on) => {
+    if (on) {
+      setSelectedSet(new Set((ordered || []).map(o => o.id)));
+    } else {
+      setSelectedSet(new Set());
+    }
+  };
 
   const move = (index, dir) => {
     const ni = index + dir;
@@ -1122,7 +1152,14 @@ const BatchGradeModal = ({ test, submissions, onClose, onDone }) => {
         alert('عدد الأسئلة يجب أن يكون بين 1 و 55');
         return;
       }
-      // Quick client-side check: warn if any filename lacks a numeric ID (always enforced)
+      // Ensure at least one student is selected to include
+      const selectedArr = ordered.filter(o => selectedSet.has(o.id));
+      if (!selectedArr.length) {
+        alert('يرجى اختيار طالب واحد على الأقل للتحميل');
+        return;
+      }
+
+      // Quick client-side check: warn if any filename lacks a numeric ID (server will validate further)
       const bad = files.filter(f => !(/(\d+)/).test(f.name || ''));
       if (bad.length > 0) {
         const list = bad.map(b => b.name).join(', ');
@@ -1133,7 +1170,8 @@ ${list}
       setSubmitting(true);
       const form = new FormData();
       form.append('n_questions', String(nQuestions));
-      form.append('students', JSON.stringify(ordered.map(o => o.id)));
+      // Only send selected students in the order the admin arranged them
+      form.append('students', JSON.stringify(selectedArr.map(o => o.id)));
       form.append('names_as_ids', 'true');
       files.forEach(f => form.append('files', f));
       await axios.post(`/tests/${test.id}/grade-physical-batch`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -1174,20 +1212,134 @@ ${list}
           <h3>ترتيب الطلاب</h3>
         </div>
         <div>
-          {ordered.map((o, idx) => (
-            <div key={o.id} style={{ display: 'flex', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-              <div style={{ width: 32, textAlign: 'center' }}>{idx + 1}</div>
-              <div style={{ flex: 1 }}>{o.name} (ID: {o.id})</div>
-              <div>
-                <button className="btn-outline" onClick={() => move(idx, -1)} disabled={idx === 0}>أعلى</button>
-                <button className="btn-outline" onClick={() => move(idx, 1)} disabled={idx === ordered.length - 1} style={{ marginInlineStart: 6 }}>أسفل</button>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '6px 6px', borderBottom: '1px solid #eee' }}>
+              <div style={{ width: 32 }}><input type="checkbox" checked={selectedSet.size === ordered.length && ordered.length > 0} onChange={(e) => selectAll(e.target.checked)} /></div>
+              <div style={{ flex: 1, fontWeight: 600 }}>الطلاب (اسحب لترتيب)</div>
+              <div style={{ width: 200, textAlign: 'right' }}>أزِر الحركة</div>
             </div>
-          ))}
+            {ordered.map((o, idx) => (
+              <div key={o.id} style={{ display: 'flex', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+                <div style={{ width: 32, textAlign: 'center' }}>
+                  <input type="checkbox" checked={selectedSet.has(o.id)} onChange={() => toggleSelect(o.id)} />
+                </div>
+                <div style={{ width: 32, textAlign: 'center' }}>{idx + 1}</div>
+                <div style={{ flex: 1 }}>{o.name} (ID: {o.id})</div>
+                <div>
+                  <button className="btn-outline" onClick={() => move(idx, -1)} disabled={idx === 0}>أعلى</button>
+                  <button className="btn-outline" onClick={() => move(idx, 1)} disabled={idx === ordered.length - 1} style={{ marginInlineStart: 6 }}>أسفل</button>
+                </div>
+              </div>
+            ))}
         </div>
         <div className="form-actions" style={{ marginTop: 10 }}>
           <button className="btn-secondary" onClick={onClose}>إلغاء</button>
           <button className="btn-primary" onClick={handleSubmit} disabled={submitting}>{submitting ? 'جارٍ التصحيح...' : 'بدء التصحيح'}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Include Students Modal: fetch eligible students and POST selected IDs to backend
+const IncludeStudentsModal = ({ test, onClose, onDone }) => {
+  const [students, setStudents] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const fetchEligible = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get(`/tests/${test.id}/eligible-students`);
+        setStudents(res.data.students || []);
+      } catch (e) {
+        console.error('Failed to load eligible students', e);
+        alert('تعذر تحميل قائمة الطلاب المؤهلين');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEligible();
+  }, [test.id]);
+
+  // Local translations (avoid referencing outer-scope helpers)
+  const translateGrade = (grade) => {
+    switch (grade) {
+      case '3MIDDLE': return 'الثالث الإعدادي';
+      case '1HIGH': return 'الأول الثانوي';
+      case '2HIGH': return 'الثاني الثانوي';
+      case '3HIGH': return 'الثالث الثانوي';
+      default: return grade;
+    }
+  };
+
+  const translateGroup = (group) => {
+    switch (group) {
+      case 'MINYAT-EL-NASR': return 'منية النصر';
+      case 'RIYAD': return 'الرياض';
+      case 'MEET-HADID': return 'ميت حديد';
+      default: return group;
+    }
+  };
+
+  const toggle = (id) => {
+    setSelected(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const handleInclude = async () => {
+    if (selected.size === 0) {
+      alert('يرجى اختيار طلاب للإضافة');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const body = { student_ids: Array.from(selected) };
+      const res = await axios.post(`/tests/${test.id}/include-students`, body);
+      const created = res.data.created || [];
+      const skipped = res.data.skipped || [];
+      alert(`تم إضافة ${created.length} طلاب، تم تخطي ${skipped.length} (لأن لديهم بالفعل مشاركات)`);
+      onDone && onDone();
+    } catch (e) {
+      console.error('Failed to include students', e);
+      alert('فشل إضافة الطلاب');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h2>إضافة طلاب للاختبار: {test.title}</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div style={{ padding: 12 }}>
+          {loading ? <p>جاري التحميل...</p> : (
+            students.length === 0 ? <p>لا يوجد طلاب مؤهلين لهذا الاختبار</p> : (
+              <div style={{ maxHeight: '50vh', overflow: 'auto' }}>
+                {students.map(s => (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: 8, borderBottom: '1px solid #eee' }}>
+                    <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
+                    <div style={{ marginInlineStart: 8, flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>{s.name}</div>
+                      <div style={{ fontSize: 12, color: '#666' }}>ID: {s.id} — {s.phone_number}</div>
+                    </div>
+                    <div style={{ minWidth: 120, textAlign: 'right' }}>{translateGrade(s.grade)}{s.student_group ? ` — ${translateGroup(s.student_group)}` : ''}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+        <div className="form-actions" style={{ padding: 12 }}>
+          <button className="btn-secondary" onClick={onClose}>إلغاء</button>
+          <button className="btn-primary" onClick={handleInclude} disabled={submitting || loading}>{submitting ? 'جارٍ الإضافة...' : 'إضافة الطلاب'}</button>
         </div>
       </div>
     </div>

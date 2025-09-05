@@ -348,6 +348,66 @@ class TestService {
     return result.rows || [];
   }
 
+  // Return eligible students for a given test (same grade and matching group if test has a student_group)
+  async getEligibleStudentsForTest(testId: number): Promise<Array<{ id: number; name: string; phone_number: string; grade: string; student_group: string | null }>> {
+    // Fetch test to read grade and student_group
+    const test = await this.getTestById(testId);
+    if (!test) return [];
+
+    const grade = test.grade;
+    const studentGroup = test.student_group || null;
+
+    let query = '';
+    let params: any[] = [];
+
+    if (studentGroup) {
+      query = 'SELECT id, name, phone_number, grade, student_group FROM students WHERE grade = $1 AND student_group = $2 ORDER BY name ASC';
+      params = [grade, studentGroup];
+    } else {
+      query = 'SELECT id, name, phone_number, grade, student_group FROM students WHERE grade = $1 ORDER BY name ASC';
+      params = [grade];
+    }
+
+    const result = await database.query(query, params);
+    return result.rows || [];
+  }
+
+  // Create placeholder submissions for given students for a PHYSICAL_SHEET test.
+  // Skips students that already have a submission for this test.
+  async includeStudentsForTest(testId: number, studentIds: number[]): Promise<{ created: Array<{ student_id: number; submission_id: number }>; skipped: number[] }> {
+    const created: Array<{ student_id: number; submission_id: number }> = [];
+    const skipped: number[] = [];
+
+    // Validate test exists and is PHYSICAL_SHEET
+    const test = await this.getTestById(testId);
+    if (!test) throw new Error('Test not found');
+    if (test.test_type !== 'PHYSICAL_SHEET') throw new Error('Can only include students for PHYSICAL_SHEET tests');
+
+    for (const sidRaw of studentIds) {
+      const sid = Number(sidRaw);
+      if (!Number.isFinite(sid)) continue;
+
+      // Check existing
+      const existingQ = 'SELECT id FROM test_answers WHERE test_id = $1 AND student_id = $2 LIMIT 1';
+      const existing = await database.query(existingQ, [testId, sid]);
+      if (existing.rows.length > 0) {
+        skipped.push(sid);
+        continue;
+      }
+
+      const insertQ = `
+        INSERT INTO test_answers (test_id, student_id, answers, score, graded, created_at)
+        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+        RETURNING id
+      `;
+      const ins = await database.query(insertQ, [testId, sid, JSON.stringify({}), null, false]);
+      const subId = ins.rows[0]?.id;
+      created.push({ student_id: sid, submission_id: subId });
+    }
+
+    return { created, skipped };
+  }
+
   async updateTest(testId: number, testData: Partial<CreateTestData>): Promise<Test | null> {
     // Only allow updating known columns. Map common client keys to DB column names.
     const allowedFields = new Set([

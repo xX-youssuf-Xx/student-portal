@@ -42,6 +42,10 @@ router.post(
   testController.gradePhysicalBatch
 );
 
+// Admin: Get eligible students and include students for PHYSICAL_SHEET tests
+router.get('/tests/:id/eligible-students', authenticateToken, requireAdmin, testController.getEligibleStudents);
+router.post('/tests/:id/include-students', authenticateToken, requireAdmin, testController.includeStudents);
+
 // Admin: Edit detected answers for a single submission and recalculate score
 router.patch(
   '/submissions/:id/answers',

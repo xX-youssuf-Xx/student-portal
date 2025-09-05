@@ -803,6 +803,57 @@ class TestController {
     }
   }
 
+  // Admin: get eligible students for a PHYSICAL_SHEET test (same grade and matching group)
+  async getEligibleStudents(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) { res.status(400).json({ message: 'Test ID is required' }); return; }
+      const testId = parseInt(id, 10);
+      if (isNaN(testId)) { res.status(400).json({ message: 'Invalid test ID' }); return; }
+
+      const students = await testService.getEligibleStudentsForTest(testId);
+      res.json({ students });
+    } catch (error) {
+      console.error('Error fetching eligible students:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  // Admin: include selected students as placeholder submissions for a PHYSICAL_SHEET test
+  async includeStudents(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) { res.status(400).json({ message: 'Test ID is required' }); return; }
+      const testId = parseInt(id, 10);
+      if (isNaN(testId)) { res.status(400).json({ message: 'Invalid test ID' }); return; }
+
+      const raw = req.body?.student_ids ?? req.body?.students ?? req.body?.studentIds;
+      let studentIds: number[] = [];
+      if (Array.isArray(raw)) {
+        studentIds = raw.map(Number).filter(n => !isNaN(n));
+      } else if (typeof raw === 'string' && raw.trim() !== '') {
+        try {
+          const parsed = JSON.parse(raw) as Array<any>;
+          studentIds = parsed.map((v: any) => Number(v)).filter((n: number) => !isNaN(n));
+        } catch {
+          studentIds = [];
+        }
+      }
+
+      if (!studentIds.length) { res.status(400).json({ message: 'student_ids array is required' }); return; }
+
+      const result = await testService.includeStudentsForTest(testId, studentIds);
+      res.json(result);
+    } catch (error) {
+      console.error('Error including students:', error);
+      if ((error as Error).message?.includes('PHYSICAL_SHEET')) {
+        res.status(400).json({ message: (error as Error).message });
+      } else {
+        res.status(500).json({ message: 'Internal server error' });
+      }
+    }
+  }
+
   // Admin: edit/update detected answers for a submission and recalculate score
   async updateBubbleAnswers(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
