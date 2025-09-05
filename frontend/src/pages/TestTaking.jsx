@@ -80,15 +80,7 @@ const TestTaking = () => {
     }
   }, [timeLeft, timerReady]);
 
-  // On initial mount, if a stale saved timer is exactly 0, give temporary grace to avoid immediate auto-submit
-  useEffect(() => {
-    const saved = localStorage.getItem(`test_${testId}_time`);
-    if (saved && parseInt(saved, 10) === 0) {
-      setTimeLeft(120);
-    }
-    // Do not set timerReady here; will be set after fetchTest computes correct time
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // No temporary visible grace timer; prevent auto-submit via timerReady gating only
 
   useEffect(() => {
     // Prevent navigation away from the test page
@@ -130,7 +122,7 @@ const TestTaking = () => {
         if (visibilityChangeCount > 2) {
           // After multiple visibility changes, assume screenshot attempt
           setToast({ type: 'error', message: 'تم اكتشاف محاولة أخذ لقطة شاشة. سيتم إنهاء الاختبار بعد 3 محاولات.' });
-          if (visibilityChangeCount >= 3) {
+          if (visibilityChangeCount >= 3 && timerReady && test) {
             handleAutoSubmit();
           }
         } else {
@@ -238,7 +230,6 @@ const TestTaking = () => {
     if (submitting) return;
     if (!test) {
       // If test data hasn't arrived yet, mark a pending auto-submit so it runs when test is available
-      console.warn('Auto-submit attempted but test not loaded — deferring until test loads');
       setAutoSubmitPending(true);
       return;
     }
