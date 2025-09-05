@@ -180,9 +180,9 @@ const TestTaking = () => {
           const elapsed = Math.floor((Date.now() - startedAt) / 1000);
           const remaining = testData.duration_minutes * 60 - elapsed;
           if (remaining <= 0) {
-            setTimeLeft(0);
-            // auto submit immediately
-            handleAutoSubmit();
+            // Grace period to mitigate slow network/clock drift: give 2 minutes
+            const GRACE_SECONDS = 120;
+            setTimeLeft(GRACE_SECONDS);
           } else {
             setTimeLeft(remaining);
           }

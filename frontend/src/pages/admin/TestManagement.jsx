@@ -32,7 +32,14 @@ const TestManagement = () => {
   const fetchSubmissions = async (testId) => {
     try {
       const response = await axios.get(`/tests/${testId}/submissions`);
-      setSubmissions(response.data.submissions || []);
+      const subs = response.data.submissions || [];
+      // Sort by score descending; null/undefined last
+      subs.sort((a, b) => {
+        const sa = (a.score === null || a.score === undefined) ? -Infinity : Number(a.score);
+        const sb = (b.score === null || b.score === undefined) ? -Infinity : Number(b.score);
+        return sb - sa;
+      });
+      setSubmissions(subs);
     } catch (error) {
       console.error('Error fetching submissions:', error);
     }
@@ -270,7 +277,9 @@ const TestModal = ({ test, onClose, onSave }) => {
   const isoToDatetimeLocalPreserve = (iso) => {
     if (!iso) return '';
     const m = String(iso).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
-    return m ? `${m[1]}T${m[2]}` : '';
+    if (!m) return iso;
+    const [_, y, mo, d, h, mi] = m;
+    return `${y}-${mo}-${d}T${h}:${mi}`;
   };
 
   const [formData, setFormData] = useState({
@@ -767,7 +776,13 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const refreshSubmissions = async () => {
     try {
       const res = await axios.get(`/tests/${test.id}/submissions`);
-      setLocalSubs(res.data.submissions || []);
+      const subs = res.data.submissions || [];
+      subs.sort((a, b) => {
+        const sa = (a.score === null || a.score === undefined) ? -Infinity : Number(a.score);
+        const sb = (b.score === null || b.score === undefined) ? -Infinity : Number(b.score);
+        return sb - sa;
+      });
+      setLocalSubs(subs);
     } catch (e) {
       // ignore
     }
