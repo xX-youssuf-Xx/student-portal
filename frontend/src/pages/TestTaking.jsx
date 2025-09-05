@@ -201,17 +201,11 @@ const TestTaking = () => {
       // Initialize answers based on test type
       // If submission exists with saved answers, restore them, otherwise initialize empty
       if (submissionMeta && submissionMeta.id) {
-        // fetch existing submission answers from server to be safe
-        try {
-          const res = await axios.get(`/tests/${testId}/result`);
-          const existing = res.data.result;
-          if (existing && existing.answers) {
-            setAnswers(typeof existing.answers === 'string' ? JSON.parse(existing.answers) : existing.answers);
-          } else {
-            setAnswers(testData.test_type === 'MCQ' ? { answers: [] } : { answers: {} });
-          }
-        } catch (err) {
-          // fallback
+        // Use answers from start payload if available; avoid extra /result request
+        const raw = submissionMeta.answers;
+        if (raw && Object.keys(raw).length > 0) {
+          setAnswers(typeof raw === 'string' ? JSON.parse(raw) : raw);
+        } else {
           setAnswers(testData.test_type === 'MCQ' ? { answers: [] } : { answers: {} });
         }
       } else {
@@ -227,7 +221,7 @@ const TestTaking = () => {
   };
 
   const handleAutoSubmit = async () => {
-    if (submitting) return;
+    if (submitting || submitted) return;
     if (!test) {
       // If test data hasn't arrived yet, mark a pending auto-submit so it runs when test is available
       setAutoSubmitPending(true);
@@ -251,24 +245,12 @@ const TestTaking = () => {
         // mark as submitted to disable inputs and buttons
         setSubmitted(true);
         setShowBubblePanel(false);
-
-        // If it's a PHYSICAL_SHEET and not graded yet, show the waiting modal instead of grade modal
+        // For students, do not call rank (admin-only). Show waiting modal if physical and ungraded, else show grade modal without rank.
         if (test.test_type === 'PHYSICAL_SHEET' && !response.data.submission.graded) {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
         } else {
-          // Otherwise, fetch rank and show grade modal
-          try {
-            const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
-            setSubmissionResult({
-              ...response.data.submission,
-              rank: rankResponse.data.rank,
-              totalStudents: rankResponse.data.totalStudents
-            });
-          } catch (error) {
-            console.error('Error fetching rank:', error);
-            setSubmissionResult(response.data.submission);
-          }
+          setSubmissionResult(response.data.submission);
           setShowGradeModal(true);
         }
       } else {
@@ -297,7 +279,7 @@ const TestTaking = () => {
   }, [autoSubmitPending, test]);
 
   const handleSubmit = async () => {
-    if (submitting) return;
+    if (submitting || submitted) return;
     if (!test) {
       setToast({ type: 'error', message: 'بيانات الاختبار غير متوفرة. الرجاء إعادة المحاولة.' });
       return;
@@ -321,24 +303,11 @@ const TestTaking = () => {
         // mark as submitted to disable inputs and buttons
         setSubmitted(true);
         setShowBubblePanel(false);
-
-        // If it's a PHYSICAL_SHEET and not graded yet, show the waiting modal instead of grade modal
         if (test.test_type === 'PHYSICAL_SHEET' && !response.data.submission.graded) {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
         } else {
-          // Otherwise, fetch rank and show grade modal
-          try {
-            const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
-            setSubmissionResult({
-              ...response.data.submission,
-              rank: rankResponse.data.rank,
-              totalStudents: rankResponse.data.totalStudents
-            });
-          } catch (error) {
-            console.error('Error fetching rank:', error);
-            setSubmissionResult(response.data.submission);
-          }
+          setSubmissionResult(response.data.submission);
           setShowGradeModal(true);
         }
       } else {
