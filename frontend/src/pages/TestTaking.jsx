@@ -35,6 +35,7 @@ const TestTaking = () => {
   const [submitted, setSubmitted] = useState(false);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [showSubmittedModal, setShowSubmittedModal] = useState(false); // for PHYSICAL_SHEET ungraded submissions
+  const [timerReady, setTimerReady] = useState(false); // countdown only runs after true time is set
 
   // Track window size to toggle mobile layout (single-column bubble sheet)
   useEffect(() => {
@@ -66,8 +67,9 @@ const TestTaking = () => {
     fetchTest();
   }, [testId]);
 
-  // Handle test submission when time runs out
+  // Handle test submission when time runs out (only after timer is initialized)
   useEffect(() => {
+    if (!timerReady) return;
     if (timeLeft > 0) {
       const timer = setTimeout(() => {
         setTimeLeft(timeLeft - 1);
@@ -76,7 +78,17 @@ const TestTaking = () => {
     } else if (timeLeft === 0) {
       handleAutoSubmit();
     }
-  }, [timeLeft]);
+  }, [timeLeft, timerReady]);
+
+  // On initial mount, if a stale saved timer is exactly 0, give temporary grace to avoid immediate auto-submit
+  useEffect(() => {
+    const saved = localStorage.getItem(`test_${testId}_time`);
+    if (saved && parseInt(saved, 10) === 0) {
+      setTimeLeft(120);
+    }
+    // Do not set timerReady here; will be set after fetchTest computes correct time
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Prevent navigation away from the test page
@@ -186,9 +198,11 @@ const TestTaking = () => {
           } else {
             setTimeLeft(remaining);
           }
+          setTimerReady(true);
         } else {
           // No server-side submission timestamp: start from full duration
           setTimeLeft(testData.duration_minutes * 60);
+          setTimerReady(true);
         }
       }
       
