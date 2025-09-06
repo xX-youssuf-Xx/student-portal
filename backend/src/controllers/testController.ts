@@ -121,7 +121,7 @@ const handleArrayUpload = (req: Request, res: Response, next: NextFunction) => {
 const multerInstance = multer({ 
   storage, 
   fileFilter: imageFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { fileSize: 1024 * 1024 * 1024 } // 1GB limit
 });
 
 // Export both multer instance and our custom middleware
