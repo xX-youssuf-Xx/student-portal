@@ -218,7 +218,7 @@ class TestController {
           // Convert relative paths to absolute URLs if needed
           image_url: img.image_path.startsWith('http') 
             ? img.image_path 
-            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
+            : `${process.env.API_BASE_URL || 'http://localhost:3000'}/${img.image_path.replace(/\\/g, '/')}`
         }))
       };
 
@@ -298,7 +298,7 @@ class TestController {
           ...img,
           image_url: img.image_path.startsWith('http') 
             ? img.image_path 
-            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
+            : `${process.env.API_BASE_URL || 'http://localhost:3000'}/${img.image_path.replace(/\\/g, '/')}`
         }))
       } : null;
       

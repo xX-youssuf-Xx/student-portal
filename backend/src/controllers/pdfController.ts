@@ -299,7 +299,7 @@ export const getTestPageCount = async (req: Request, res: Response): Promise<voi
     const files = fs.readdirSync(testDir);
     
     // Match files like: 1.jpg, page_1.jpg, 1.jpeg, page_1.png, etc.
-    const pageFiles = files.filter(file => 
+    const pageFiles = files.filter(file =>   
       /^(?:page_)?\d+\.(jpg|jpeg|png)$/i.test(file)
     ).sort((a, b) => {
       // Sort files numerically by page number

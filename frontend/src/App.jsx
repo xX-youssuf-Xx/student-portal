@@ -1,11 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Navbar from './components/Navbar';
+import Navbar from './components/Navbar'; 
 import Footer from './components/Footer';
 import Home from './pages/Home';
 import StudentLogin from './pages/StudentLogin';
-import AdminLogin from './pages/AdminLogin';
+import AdminLogin from './pages/AdminLogin';  
 import StudentDashboard from './pages/StudentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import DashboardHomePage from './pages/admin/DashboardHomePage';

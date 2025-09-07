@@ -764,6 +764,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const [gradeData, setGradeData] = useState({ comment: '', gradesPct: {} }); // gradesPct keyed by question id (0..100)
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showIncludeModal, setShowIncludeModal] = useState(false);
+  const [testDetail, setTestDetail] = useState(null);
   const [localSubs, setLocalSubs] = useState(submissions || []);
   const [editingAnswersId, setEditingAnswersId] = useState(null);
   const [answersDetail, setAnswersDetail] = useState(null); // { test, submission, correct_answers }
@@ -788,6 +789,22 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
       // ignore
     }
   };
+
+  // Fetch full test details (to get correct_answers and test_type) for computing raw counts
+  useEffect(() => {
+    let mounted = true;
+    const fetchTest = async () => {
+      try {
+        const res = await axios.get(`/tests/${test.id}`);
+        // controller returns { test }
+        if (mounted) setTestDetail(res.data.test || null);
+      } catch (e) {
+        console.error('Failed to fetch test details for submissions modal', e);
+      }
+    };
+    fetchTest();
+    return () => { mounted = false; };
+  }, [test.id]);
 
   // Open detailed grading view: fetch submission with test and correct answers
   const openManualGrading = async (submission) => {
@@ -950,6 +967,42 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
     );
   };
 
+  // Compute correct count and total questions for a submission using testDetail
+  const computeCorrectTotal = (submission) => {
+    if (!testDetail || !testDetail.correct_answers) return null;
+    try {
+      const ttype = testDetail.test_type;
+      const ca = testDetail.correct_answers;
+
+      if (ttype === 'MCQ') {
+        const questions = ca.questions || [];
+        const studentAnsArr = submission?.answers && (submission.answers.answers || submission.answers) ? (submission.answers.answers || submission.answers) : [];
+        let correct = 0;
+        for (const q of questions) {
+          const sa = (studentAnsArr || []).find(a => a.id === q.id);
+          if (sa && sa.answer === q.correct) correct++;
+        }
+        return { correct, total: questions.length };
+      }
+
+      if (ttype === 'BUBBLE_SHEET' || ttype === 'PHYSICAL_SHEET') {
+        const correctMap = ca.answers || ca;
+        const studentMap = submission?.answers && (submission.answers.answers || submission.answers) ? (submission.answers.answers || submission.answers) : {};
+        const keys = Object.keys(correctMap || {});
+        let correct = 0;
+        for (const k of keys) {
+          const expected = (correctMap[k] || '').toString();
+          const given = (studentMap && (studentMap[k] || '')).toString();
+          if (given && expected && given === expected) correct++;
+        }
+        return { correct, total: keys.length };
+      }
+    } catch (e) {
+      console.error('Error computing correct/total:', e);
+    }
+    return null;
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-content submissions-modal">
@@ -991,9 +1044,19 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                 <div className="submission-details">
                   <p>تاريخ التقديم: {new Date(submission.created_at).toLocaleDateString('ar-EG')}</p>
                   {submission.score !== null ? (
-                    <p className="score">الدرجة: {submission.score}%</p>
+                    (() => {
+                      const stats = computeCorrectTotal(submission);
+                      return (
+                        <p className="score">الدرجة: {submission.score}%{stats ? ` (${stats.correct}/${stats.total})` : ''}</p>
+                      );
+                    })()
                   ) : (
-                    <p className="no-score">لم يتم التقدير</p>
+                    (() => {
+                      const stats = computeCorrectTotal(submission);
+                      return (
+                        <p className="no-score">{stats ? `صحيح ${stats.correct} من ${stats.total}` : 'لم يتم التقدير'}</p>
+                      );
+                    })()
                   )}
                 </div>
 

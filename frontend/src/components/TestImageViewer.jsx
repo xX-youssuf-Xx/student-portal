@@ -84,7 +84,7 @@ const TestImageViewer = ({ testId }) => {
        <div className="image-container">
          {images.length > 0 && (
            <img 
-             src={"https://studentportal.egypt-tech.com/" +(images[currentIndex].image_url || images[currentIndex].image_path)} 
+             src={"http://localhost:3000/" +(images[currentIndex].image_url || images[currentIndex].image_path)} 
              alt={`Test Page ${currentIndex + 1}`}
              className="test-image"
            />
