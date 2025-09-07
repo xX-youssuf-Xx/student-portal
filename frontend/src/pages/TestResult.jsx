@@ -50,7 +50,7 @@ const TestResult = () => {
       return <div>خطأ في تحميل الإجابات</div>;
     }
     const correctAnswers = result.correct_answers_visible.answers;
-    const API_BASE = (import.meta?.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : 'http://localhost:3000';
+    const API_BASE = (import.meta?.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : 'https://studentportal.egypt-tech.com/';
     const imgSrc = studentAnswers?.bubble_image_path ? `${API_BASE}/${studentAnswers.bubble_image_path}` : null;
 
     return (
@@ -405,7 +405,7 @@ const TestResult = () => {
           <div className="test-pdf-reference">
             <h3>ورقة الامتحان للمراجعة</h3>
             <iframe
-              src={`http://localhost:3000/${result.pdf_file_path}`}
+              src={`https://studentportal.egypt-tech.com//${result.pdf_file_path}`}
               width="100%"
               height="600px"
               title="ورقة الامتحان"
