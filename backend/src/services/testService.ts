@@ -932,14 +932,111 @@ class TestService {
   }
 
   async uploadBubbleSheet(testId: number, studentId: number, filePath: string): Promise<TestAnswer | null> {
-    // For physical sheet tests, just store the file path
-    const answers = {
-      file_path: filePath,
-      extracted_answers: {}, // This would be filled by OCR processing
-      notes: "Bubble sheet uploaded, awaiting processing"
-    };
+    // For physical sheet tests, store the file path and delete any previous uploaded file recorded on the submission
+    // Check for existing submission
+    try {
+      const existingQ = 'SELECT * FROM test_answers WHERE test_id = $1 AND student_id = $2 LIMIT 1';
+      const existingRes = await database.query(existingQ, [testId, studentId]);
+      if (existingRes.rows.length > 0) {
+        const existing = existingRes.rows[0];
+        // Try to parse answers and remove previous file paths if present
+        try {
+          const ans = existing.answers && typeof existing.answers === 'string' ? JSON.parse(existing.answers) : existing.answers;
+          const candidates = [];
+          if (ans) {
+            if (ans.file_path) candidates.push(ans.file_path);
+            if (ans.bubble_image_path) candidates.push(ans.bubble_image_path);
+            if (ans.bubble_image) candidates.push(ans.bubble_image);
+          }
+          // Remove duplicates and falsy
+          const uniq = Array.from(new Set(candidates.filter(Boolean)));
+          for (const p of uniq) {
+            try {
+              // Only unlink local filesystem paths
+              if (typeof p === 'string' && p && !p.startsWith('http')) {
+                await unlinkAsync(p).catch(() => {});
+              }
+            } catch (e) {
+              // ignore individual unlink errors
+            }
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+      }
 
-    return this.submitTest(testId, studentId, answers);
+      const answers = {
+        file_path: filePath,
+        extracted_answers: {}, // This would be filled by OCR processing
+        notes: 'Bubble sheet uploaded, awaiting processing'
+      };
+
+      // Use submitTest which will insert or update existing submission
+      return this.submitTest(testId, studentId, answers);
+    } catch (error) {
+      console.error('Error in uploadBubbleSheet:', error);
+      // Fallback: still attempt to submit with the provided path
+      const answers = {
+        file_path: filePath,
+        extracted_answers: {},
+        notes: 'Bubble sheet uploaded, awaiting processing'
+      };
+      return this.submitTest(testId, studentId, answers);
+    }
+  }
+
+  // Delete a submission and any associated files referenced in its answers
+  async deleteSubmission(submissionId: number): Promise<boolean> {
+    const client = await database.getClient();
+    try {
+      await client.query('BEGIN');
+      const q = 'SELECT * FROM test_answers WHERE id = $1 FOR UPDATE';
+      const res = await client.query(q, [submissionId]);
+      if (res.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+      const submission = res.rows[0];
+      // Parse answers and collect file paths
+      const filesToDelete: string[] = [];
+      try {
+        const ans = submission.answers && typeof submission.answers === 'string' ? JSON.parse(submission.answers) : submission.answers;
+        if (ans) {
+          if (ans.file_path) filesToDelete.push(ans.file_path);
+          if (ans.bubble_image_path) filesToDelete.push(ans.bubble_image_path);
+          if (ans.bubble_image) filesToDelete.push(ans.bubble_image);
+          // Also look for nested objects (manual_grades or extracted answers) that might carry paths
+          if (ans.image_path) filesToDelete.push(ans.image_path);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // Delete DB row
+      await client.query('DELETE FROM test_answers WHERE id = $1', [submissionId]);
+
+      // Commit DB delete before unlinking files to avoid partial state
+      await client.query('COMMIT');
+
+      // Unlink files (best-effort)
+      for (const f of Array.from(new Set(filesToDelete.filter(Boolean)))) {
+        try {
+          if (typeof f === 'string' && f && !f.startsWith('http')) {
+            await unlinkAsync(f).catch((err) => console.error('Failed deleting submission file', f, err));
+          }
+        } catch (e) {
+          console.error('Error unlinking file', f, e);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error deleting submission:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   private calculateScore(studentAnswers: any, correctAnswers: any, testType: string): number {
@@ -1158,6 +1255,267 @@ class TestService {
     } finally {
       client.release();
     }
+  }
+
+  // Export combined rankings for multiple tests as CSV (Arabic headers)
+  async exportCombinedRankings(testIds: number[]): Promise<string> {
+    if (!Array.isArray(testIds) || testIds.length === 0) return '';
+    // Fetch submissions across provided tests, include test.correct_answers and answers for accurate counts
+    const q = `
+      SELECT ta.id as submission_id, ta.test_id, t.title as test_title, t.test_type, t.correct_answers, ta.student_id, s.name as student_name, s.phone_number, s.grade, s.student_group, ta.score, ta.graded, ta.answers
+      FROM test_answers ta
+      JOIN students s ON ta.student_id = s.id
+      JOIN tests t ON ta.test_id = t.id
+      WHERE ta.test_id = ANY($1)
+      ORDER BY ta.score DESC NULLS LAST, ta.updated_at ASC
+    `;
+    const res = await database.query(q, [testIds]);
+    const rows = res.rows || [];
+
+    // Arabic header: remove submitted_at, add correct count and percentage, translate labels
+    const header = [
+      'معرف المشاركة',
+      'معرف الاختبار',
+      'عنوان الاختبار',
+      'معرف الطالب',
+      'اسم الطالب',
+      'الهاتف',
+      'الصف',
+      'المجموعة',
+      'عدد الصحيح',
+      'النسبة',
+      'مصحح'
+    ];
+
+    const escape = (v: unknown): string => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    };
+
+    // Helpers for translating grade/group values
+    const translateGrade = (g: any) => {
+      switch (g) {
+        case '3MIDDLE': return 'الثالث الإعدادي';
+        case '1HIGH': return 'الأول الثانوي';
+        case '2HIGH': return 'الثاني الثانوي';
+        case '3HIGH': return 'الثالث الثانوي';
+        default: return g || '';
+      }
+    };
+
+    const translateGroup = (gr: any) => {
+      switch (gr) {
+        case 'MINYAT-EL-NASR': return 'منية النصر';
+        case 'RIYAD': return 'الرياض';
+        case 'MEET-HADID': return 'ميت حديد';
+        default: return gr || '';
+      }
+    };
+
+    // Compute correct count by comparing student's answers to correct_answers
+    const computeCorrect = (testType: string, correctAnswersRaw: any, studentAnswersRaw: any) => {
+      try {
+        let correctAnswers = correctAnswersRaw;
+        if (typeof correctAnswersRaw === 'string') {
+          try { correctAnswers = JSON.parse(correctAnswersRaw); } catch { correctAnswers = null; }
+        }
+        let studentAnswers = studentAnswersRaw;
+        if (typeof studentAnswersRaw === 'string') {
+          try { studentAnswers = JSON.parse(studentAnswersRaw); } catch { studentAnswers = null; }
+        }
+
+        if (!correctAnswers) return { correct: 0, total: 0 };
+
+        if (testType === 'MCQ') {
+          const questions = correctAnswers.questions || [];
+          const total = questions.length;
+          let correct = 0;
+          const stuAnsArr = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : [];
+          for (const q of questions) {
+            const sa = (stuAnsArr || []).find((a: any) => a.id === q.id);
+            if (sa && sa.answer === q.correct) correct++;
+            // For OPEN questions, if manual grades were stored as numeric within studentAnswers.manual_grades or similar
+            if (q.type === 'OPEN') {
+              // try to read manual grade from studentAnswers.manual_grades (not common)
+              // but MCQ OPEN grading is handled elsewhere; for export we'll consider OPEN correct only if manual grade > 0 exists in studentAnswers
+              // nothing extra here for now
+            }
+          }
+          return { correct, total };
+        }
+
+        if (testType === 'BUBBLE_SHEET' || testType === 'PHYSICAL_SHEET') {
+          const correctMap = correctAnswers.answers || correctAnswers;
+          const studentMap = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : {};
+          const keys = Object.keys(correctMap || {});
+          const total = keys.length;
+          let correct = 0;
+          for (const k of keys) {
+            const expected = (correctMap[k] || '').toString();
+            const given = (studentMap && (studentMap[k] || '')).toString();
+            if (given && expected && given === expected) correct++;
+          }
+          return { correct, total };
+        }
+      } catch (e) {
+        // fallthrough
+      }
+      return { correct: 0, total: 0 };
+    };
+
+    const lines = [header.map(escape).join(',')];
+    for (const r of rows) {
+      const testType = r.test_type || '';
+      const ca = r.correct_answers || null;
+      const answers = r.answers || null;
+      const { correct, total } = computeCorrect(testType, ca, answers);
+      const pct = (total > 0) ? (Math.round((correct / total) * 10000) / 100) : (r.score ?? '');
+
+      const gradeLabel = translateGrade(r.grade);
+      const groupLabel = translateGroup(r.student_group);
+
+      const vals = [
+        r.submission_id,
+        r.test_id,
+        r.test_title,
+        r.student_id,
+        r.student_name,
+        r.phone_number,
+        gradeLabel,
+        groupLabel,
+        correct,
+        pct,
+        r.graded ? 'نعم' : 'لا'
+      ];
+
+      lines.push(vals.map(escape).join(','));
+    }
+
+    return lines.join('\n');
+  }
+
+  // New: return structured rows and header (Arabic) for XLSX export
+  async exportCombinedRankingsRows(testIds: number[]): Promise<{ header: string[]; rows: Array<any[]> }> {
+    if (!Array.isArray(testIds) || testIds.length === 0) return { header: [], rows: [] };
+    const q = `
+      SELECT ta.id as submission_id, ta.test_id, t.title as test_title, t.test_type, t.correct_answers, ta.student_id, s.name as student_name, s.phone_number, s.grade, s.student_group, ta.score, ta.graded, ta.answers
+      FROM test_answers ta
+      JOIN students s ON ta.student_id = s.id
+      JOIN tests t ON ta.test_id = t.id
+      WHERE ta.test_id = ANY($1)
+      ORDER BY ta.score DESC NULLS LAST, ta.updated_at ASC
+    `;
+    const res = await database.query(q, [testIds]);
+    const rows = res.rows || [];
+
+    const header = [
+      'معرف المشاركة',
+      'معرف الاختبار',
+      'عنوان الاختبار',
+      'معرف الطالب',
+      'اسم الطالب',
+      'الهاتف',
+      'الصف',
+      'المجموعة',
+      'عدد الصحيح',
+      'النسبة',
+      'مصحح'
+    ];
+
+    const translateGrade = (g: any) => {
+      switch (g) {
+        case '3MIDDLE': return 'الثالث الإعدادي';
+        case '1HIGH': return 'الأول الثانوي';
+        case '2HIGH': return 'الثاني الثانوي';
+        case '3HIGH': return 'الثالث الثانوي';
+        default: return g || '';
+      }
+    };
+
+    const translateGroup = (gr: any) => {
+      switch (gr) {
+        case 'MINYAT-EL-NASR': return 'منية النصر';
+        case 'RIYAD': return 'الرياض';
+        case 'MEET-HADID': return 'ميت حديد';
+        default: return gr || '';
+      }
+    };
+
+    const computeCorrect = (testType: string, correctAnswersRaw: any, studentAnswersRaw: any) => {
+      try {
+        let correctAnswers = correctAnswersRaw;
+        if (typeof correctAnswersRaw === 'string') {
+          try { correctAnswers = JSON.parse(correctAnswersRaw); } catch { correctAnswers = null; }
+        }
+        let studentAnswers = studentAnswersRaw;
+        if (typeof studentAnswersRaw === 'string') {
+          try { studentAnswers = JSON.parse(studentAnswersRaw); } catch { studentAnswers = null; }
+        }
+
+        if (!correctAnswers) return { correct: 0, total: 0 };
+
+        if (testType === 'MCQ') {
+          const questions = correctAnswers.questions || [];
+          const total = questions.length;
+          let correct = 0;
+          const stuAnsArr = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : [];
+          for (const q of questions) {
+            const sa = (stuAnsArr || []).find((a: any) => a.id === q.id);
+            if (sa && sa.answer === q.correct) correct++;
+          }
+          return { correct, total };
+        }
+
+        if (testType === 'BUBBLE_SHEET' || testType === 'PHYSICAL_SHEET') {
+          const correctMap = correctAnswers.answers || correctAnswers;
+          const studentMap = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : {};
+          const keys = Object.keys(correctMap || {});
+          const total = keys.length;
+          let correct = 0;
+          for (const k of keys) {
+            const expected = (correctMap[k] || '').toString();
+            const given = (studentMap && (studentMap[k] || '')).toString();
+            if (given && expected && given === expected) correct++;
+          }
+          return { correct, total };
+        }
+      } catch (e) {
+        // ignore
+      }
+      return { correct: 0, total: 0 };
+    };
+
+    const outRows: Array<any[]> = [];
+    for (const r of rows) {
+      const testType = r.test_type || '';
+      const ca = r.correct_answers || null;
+      const answers = r.answers || null;
+      const { correct, total } = computeCorrect(testType, ca, answers);
+      const pct = (total > 0) ? (Math.round((correct / total) * 10000) / 100) : (r.score ?? '');
+
+      const gradeLabel = translateGrade(r.grade);
+      const groupLabel = translateGroup(r.student_group);
+
+      outRows.push([
+        r.submission_id,
+        r.test_id,
+        r.test_title,
+        r.student_id,
+        r.student_name,
+        r.phone_number,
+        gradeLabel,
+        groupLabel,
+        correct,
+        pct,
+        r.graded ? 'نعم' : 'لا'
+      ]);
+    }
+
+    return { header, rows: outRows };
   }
 }
 

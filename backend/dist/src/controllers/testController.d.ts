@@ -22,6 +22,7 @@ declare class TestController {
     updateViewPermission(req: AuthenticatedRequest, res: Response): Promise<void>;
     getTestSubmissions(req: AuthenticatedRequest, res: Response): Promise<void>;
     gradeSubmission(req: AuthenticatedRequest, res: Response): Promise<void>;
+    deleteSubmission(req: AuthenticatedRequest, res: Response): Promise<void>;
     getSubmissionWithTest(req: AuthenticatedRequest, res: Response): Promise<void>;
     setManualGrades(req: AuthenticatedRequest, res: Response): Promise<void>;
     getAvailableTests(req: AuthenticatedRequest, res: Response): Promise<void>;
@@ -34,6 +35,9 @@ declare class TestController {
     uploadBubbleSheet(req: AuthenticatedRequest, res: Response): Promise<void>;
     getStudentRank(req: AuthenticatedRequest, res: Response): Promise<void>;
     gradePhysicalBatch(req: AuthenticatedRequest, res: Response): Promise<void>;
+    getEligibleStudents(req: AuthenticatedRequest, res: Response): Promise<void>;
+    includeStudents(req: AuthenticatedRequest, res: Response): Promise<void>;
+    exportRankings(req: AuthenticatedRequest, res: Response): Promise<void>;
     updateBubbleAnswers(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
 declare const _default: TestController;

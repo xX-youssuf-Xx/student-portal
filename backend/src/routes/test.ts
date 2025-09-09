@@ -30,6 +30,8 @@ router.patch('/submissions/:id/grade', authenticateToken, requireAdmin, testCont
 // Admin manual per-question grading
 router.get('/tests/:id/submissions/:submissionId', authenticateToken, requireAdmin, testController.getSubmissionWithTest);
 router.patch('/submissions/:id/manual-grades', authenticateToken, requireAdmin, testController.setManualGrades);
+// Admin: delete a submission and associated files
+router.delete('/submissions/:id', authenticateToken, requireAdmin, testController.deleteSubmission);
 
 // Admin: Batch grade physical bubble sheets
 // Expect: multipart/form-data with field 'n_questions', 'students' (JSON array of student IDs in order),
@@ -45,6 +47,9 @@ router.post(
 // Admin: Get eligible students and include students for PHYSICAL_SHEET tests
 router.get('/tests/:id/eligible-students', authenticateToken, requireAdmin, testController.getEligibleStudents);
 router.post('/tests/:id/include-students', authenticateToken, requireAdmin, testController.includeStudents);
+
+// Admin: export combined rankings for selected tests
+router.post('/tests/export-rankings', authenticateToken, requireAdmin, testController.exportRankings);
 
 // Admin: Edit detected answers for a single submission and recalculate score
 router.patch(

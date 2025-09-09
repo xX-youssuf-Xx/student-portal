@@ -218,7 +218,7 @@ class TestController {
           // Convert relative paths to absolute URLs if needed
           image_url: img.image_path.startsWith('http') 
             ? img.image_path 
-            : `${process.env.API_BASE_URL || 'http://localhost:3000'}/${img.image_path.replace(/\\/g, '/')}`
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
         }))
       };
 
@@ -298,7 +298,7 @@ class TestController {
           ...img,
           image_url: img.image_path.startsWith('http') 
             ? img.image_path 
-            : `${process.env.API_BASE_URL || 'http://localhost:3000'}/${img.image_path.replace(/\\/g, '/')}`
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
         }))
       } : null;
       
@@ -414,6 +414,32 @@ class TestController {
       res.json({ submission });
     } catch (error) {
       console.error('Error grading submission:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  async deleteSubmission(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Submission ID is required' });
+        return;
+      }
+      const submissionId = parseInt(id, 10);
+      if (isNaN(submissionId)) {
+        res.status(400).json({ message: 'Invalid submission ID' });
+        return;
+      }
+
+      const success = await testService.deleteSubmission(submissionId);
+      if (!success) {
+        res.status(404).json({ message: 'Submission not found' });
+        return;
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting submission:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   }
@@ -851,6 +877,57 @@ class TestController {
       } else {
         res.status(500).json({ message: 'Internal server error' });
       }
+    }
+  }
+
+  // Admin: export combined rankings for selected tests (returns CSV)
+  async exportRankings(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const raw = req.body?.test_ids ?? req.body?.tests ?? req.body?.testIds;
+      let testIds: number[] = [];
+      if (Array.isArray(raw)) testIds = raw.map(Number).filter(n => !isNaN(n));
+      else if (typeof raw === 'string' && raw.trim() !== '') {
+        try { const parsed = JSON.parse(raw) as unknown[]; testIds = parsed.map((v) => Number(v)).filter((n) => !isNaN(n)); } catch { testIds = []; }
+      }
+
+      if (!testIds.length) {
+        res.status(400).json({ message: 'test_ids array is required' });
+        return;
+      }
+
+      // Use service to get structured rows and create an XLSX workbook
+      const { header, rows } = await testService.exportCombinedRankingsRows(testIds);
+
+      // Lazy-require exceljs to avoid adding it at top-level if not needed during test runs
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('الترتيب');
+
+      // Add header (Arabic) and rows
+      sheet.addRow(header);
+      for (const r of rows) {
+        sheet.addRow(r);
+      }
+
+      // Auto-width columns
+      sheet.columns.forEach((col) => {
+        let max = 10;
+        // eachCell may be undefined in ExcelJS typings, guard before calling
+        col.eachCell?.({ includeEmpty: true }, (cell) => { 
+          const val = cell && cell.value ? String(cell.value) : '';
+          if (val.length > max) max = val.length;
+        });
+        col.width = Math.min(Math.max(max + 2, 10), 60);
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="rankings.xlsx"');
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error('Error exporting rankings:', error);
+      res.status(500).json({ message: 'Internal server error' });
     }
   }
 

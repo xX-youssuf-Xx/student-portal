@@ -289,6 +289,54 @@ class TestService {
         const result = await database.query(query, [id]);
         return result.rows || [];
     }
+    async getEligibleStudentsForTest(testId) {
+        const test = await this.getTestById(testId);
+        if (!test)
+            return [];
+        const grade = test.grade;
+        const studentGroup = test.student_group || null;
+        let query = '';
+        let params = [];
+        if (studentGroup) {
+            query = 'SELECT id, name, phone_number, grade, student_group FROM students WHERE grade = $1 AND student_group = $2 ORDER BY name ASC';
+            params = [grade, studentGroup];
+        }
+        else {
+            query = 'SELECT id, name, phone_number, grade, student_group FROM students WHERE grade = $1 ORDER BY name ASC';
+            params = [grade];
+        }
+        const result = await database.query(query, params);
+        return result.rows || [];
+    }
+    async includeStudentsForTest(testId, studentIds) {
+        const created = [];
+        const skipped = [];
+        const test = await this.getTestById(testId);
+        if (!test)
+            throw new Error('Test not found');
+        if (test.test_type !== 'PHYSICAL_SHEET')
+            throw new Error('Can only include students for PHYSICAL_SHEET tests');
+        for (const sidRaw of studentIds) {
+            const sid = Number(sidRaw);
+            if (!Number.isFinite(sid))
+                continue;
+            const existingQ = 'SELECT id FROM test_answers WHERE test_id = $1 AND student_id = $2 LIMIT 1';
+            const existing = await database.query(existingQ, [testId, sid]);
+            if (existing.rows.length > 0) {
+                skipped.push(sid);
+                continue;
+            }
+            const insertQ = `
+        INSERT INTO test_answers (test_id, student_id, answers, score, graded, created_at)
+        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+        RETURNING id
+      `;
+            const ins = await database.query(insertQ, [testId, sid, JSON.stringify({}), null, false]);
+            const subId = ins.rows[0]?.id;
+            created.push({ student_id: sid, submission_id: subId });
+        }
+        return { created, skipped };
+    }
     async updateTest(testId, testData) {
         const allowedFields = new Set([
             'title', 'grade', 'student_group', 'test_type', 'start_time', 'end_time',
@@ -727,12 +775,102 @@ class TestService {
         return this.normalizeSubmission(updateRes.rows[0]);
     }
     async uploadBubbleSheet(testId, studentId, filePath) {
-        const answers = {
-            file_path: filePath,
-            extracted_answers: {},
-            notes: "Bubble sheet uploaded, awaiting processing"
-        };
-        return this.submitTest(testId, studentId, answers);
+        try {
+            const existingQ = 'SELECT * FROM test_answers WHERE test_id = $1 AND student_id = $2 LIMIT 1';
+            const existingRes = await database.query(existingQ, [testId, studentId]);
+            if (existingRes.rows.length > 0) {
+                const existing = existingRes.rows[0];
+                try {
+                    const ans = existing.answers && typeof existing.answers === 'string' ? JSON.parse(existing.answers) : existing.answers;
+                    const candidates = [];
+                    if (ans) {
+                        if (ans.file_path)
+                            candidates.push(ans.file_path);
+                        if (ans.bubble_image_path)
+                            candidates.push(ans.bubble_image_path);
+                        if (ans.bubble_image)
+                            candidates.push(ans.bubble_image);
+                    }
+                    const uniq = Array.from(new Set(candidates.filter(Boolean)));
+                    for (const p of uniq) {
+                        try {
+                            if (typeof p === 'string' && p && !p.startsWith('http')) {
+                                await unlinkAsync(p).catch(() => { });
+                            }
+                        }
+                        catch (e) {
+                        }
+                    }
+                }
+                catch (e) {
+                }
+            }
+            const answers = {
+                file_path: filePath,
+                extracted_answers: {},
+                notes: 'Bubble sheet uploaded, awaiting processing'
+            };
+            return this.submitTest(testId, studentId, answers);
+        }
+        catch (error) {
+            console.error('Error in uploadBubbleSheet:', error);
+            const answers = {
+                file_path: filePath,
+                extracted_answers: {},
+                notes: 'Bubble sheet uploaded, awaiting processing'
+            };
+            return this.submitTest(testId, studentId, answers);
+        }
+    }
+    async deleteSubmission(submissionId) {
+        const client = await database.getClient();
+        try {
+            await client.query('BEGIN');
+            const q = 'SELECT * FROM test_answers WHERE id = $1 FOR UPDATE';
+            const res = await client.query(q, [submissionId]);
+            if (res.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const submission = res.rows[0];
+            const filesToDelete = [];
+            try {
+                const ans = submission.answers && typeof submission.answers === 'string' ? JSON.parse(submission.answers) : submission.answers;
+                if (ans) {
+                    if (ans.file_path)
+                        filesToDelete.push(ans.file_path);
+                    if (ans.bubble_image_path)
+                        filesToDelete.push(ans.bubble_image_path);
+                    if (ans.bubble_image)
+                        filesToDelete.push(ans.bubble_image);
+                    if (ans.image_path)
+                        filesToDelete.push(ans.image_path);
+                }
+            }
+            catch (e) {
+            }
+            await client.query('DELETE FROM test_answers WHERE id = $1', [submissionId]);
+            await client.query('COMMIT');
+            for (const f of Array.from(new Set(filesToDelete.filter(Boolean)))) {
+                try {
+                    if (typeof f === 'string' && f && !f.startsWith('http')) {
+                        await unlinkAsync(f).catch((err) => console.error('Failed deleting submission file', f, err));
+                    }
+                }
+                catch (e) {
+                    console.error('Error unlinking file', f, e);
+                }
+            }
+            return true;
+        }
+        catch (error) {
+            await client.query('ROLLBACK');
+            console.error('Error deleting submission:', error);
+            throw error;
+        }
+        finally {
+            client.release();
+        }
     }
     calculateScore(studentAnswers, correctAnswers, testType) {
         try {
@@ -906,6 +1044,260 @@ class TestService {
         finally {
             client.release();
         }
+    }
+    async exportCombinedRankings(testIds) {
+        if (!Array.isArray(testIds) || testIds.length === 0)
+            return '';
+        const q = `
+      SELECT ta.id as submission_id, ta.test_id, t.title as test_title, t.test_type, t.correct_answers, ta.student_id, s.name as student_name, s.phone_number, s.grade, s.student_group, ta.score, ta.graded, ta.answers
+      FROM test_answers ta
+      JOIN students s ON ta.student_id = s.id
+      JOIN tests t ON ta.test_id = t.id
+      WHERE ta.test_id = ANY($1)
+      ORDER BY ta.score DESC NULLS LAST, ta.updated_at ASC
+    `;
+        const res = await database.query(q, [testIds]);
+        const rows = res.rows || [];
+        const header = [
+            'معرف المشاركة',
+            'معرف الاختبار',
+            'عنوان الاختبار',
+            'معرف الطالب',
+            'اسم الطالب',
+            'الهاتف',
+            'الصف',
+            'المجموعة',
+            'عدد الصحيح',
+            'النسبة',
+            'مصحح'
+        ];
+        const escape = (v) => {
+            if (v === null || v === undefined)
+                return '';
+            const s = String(v);
+            if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+                return '"' + s.replace(/"/g, '""') + '"';
+            }
+            return s;
+        };
+        const translateGrade = (g) => {
+            switch (g) {
+                case '3MIDDLE': return 'الثالث الإعدادي';
+                case '1HIGH': return 'الأول الثانوي';
+                case '2HIGH': return 'الثاني الثانوي';
+                case '3HIGH': return 'الثالث الثانوي';
+                default: return g || '';
+            }
+        };
+        const translateGroup = (gr) => {
+            switch (gr) {
+                case 'MINYAT-EL-NASR': return 'منية النصر';
+                case 'RIYAD': return 'الرياض';
+                case 'MEET-HADID': return 'ميت حديد';
+                default: return gr || '';
+            }
+        };
+        const computeCorrect = (testType, correctAnswersRaw, studentAnswersRaw) => {
+            try {
+                let correctAnswers = correctAnswersRaw;
+                if (typeof correctAnswersRaw === 'string') {
+                    try {
+                        correctAnswers = JSON.parse(correctAnswersRaw);
+                    }
+                    catch {
+                        correctAnswers = null;
+                    }
+                }
+                let studentAnswers = studentAnswersRaw;
+                if (typeof studentAnswersRaw === 'string') {
+                    try {
+                        studentAnswers = JSON.parse(studentAnswersRaw);
+                    }
+                    catch {
+                        studentAnswers = null;
+                    }
+                }
+                if (!correctAnswers)
+                    return { correct: 0, total: 0 };
+                if (testType === 'MCQ') {
+                    const questions = correctAnswers.questions || [];
+                    const total = questions.length;
+                    let correct = 0;
+                    const stuAnsArr = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : [];
+                    for (const q of questions) {
+                        const sa = (stuAnsArr || []).find((a) => a.id === q.id);
+                        if (sa && sa.answer === q.correct)
+                            correct++;
+                        if (q.type === 'OPEN') {
+                        }
+                    }
+                    return { correct, total };
+                }
+                if (testType === 'BUBBLE_SHEET' || testType === 'PHYSICAL_SHEET') {
+                    const correctMap = correctAnswers.answers || correctAnswers;
+                    const studentMap = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : {};
+                    const keys = Object.keys(correctMap || {});
+                    const total = keys.length;
+                    let correct = 0;
+                    for (const k of keys) {
+                        const expected = (correctMap[k] || '').toString();
+                        const given = (studentMap && (studentMap[k] || '')).toString();
+                        if (given && expected && given === expected)
+                            correct++;
+                    }
+                    return { correct, total };
+                }
+            }
+            catch (e) {
+            }
+            return { correct: 0, total: 0 };
+        };
+        const lines = [header.map(escape).join(',')];
+        for (const r of rows) {
+            const testType = r.test_type || '';
+            const ca = r.correct_answers || null;
+            const answers = r.answers || null;
+            const { correct, total } = computeCorrect(testType, ca, answers);
+            const pct = (total > 0) ? (Math.round((correct / total) * 10000) / 100) : (r.score ?? '');
+            const gradeLabel = translateGrade(r.grade);
+            const groupLabel = translateGroup(r.student_group);
+            const vals = [
+                r.submission_id,
+                r.test_id,
+                r.test_title,
+                r.student_id,
+                r.student_name,
+                r.phone_number,
+                gradeLabel,
+                groupLabel,
+                correct,
+                pct,
+                r.graded ? 'نعم' : 'لا'
+            ];
+            lines.push(vals.map(escape).join(','));
+        }
+        return lines.join('\n');
+    }
+    async exportCombinedRankingsRows(testIds) {
+        if (!Array.isArray(testIds) || testIds.length === 0)
+            return { header: [], rows: [] };
+        const q = `
+      SELECT ta.id as submission_id, ta.test_id, t.title as test_title, t.test_type, t.correct_answers, ta.student_id, s.name as student_name, s.phone_number, s.grade, s.student_group, ta.score, ta.graded, ta.answers
+      FROM test_answers ta
+      JOIN students s ON ta.student_id = s.id
+      JOIN tests t ON ta.test_id = t.id
+      WHERE ta.test_id = ANY($1)
+      ORDER BY ta.score DESC NULLS LAST, ta.updated_at ASC
+    `;
+        const res = await database.query(q, [testIds]);
+        const rows = res.rows || [];
+        const header = [
+            'معرف المشاركة',
+            'معرف الاختبار',
+            'عنوان الاختبار',
+            'معرف الطالب',
+            'اسم الطالب',
+            'الهاتف',
+            'الصف',
+            'المجموعة',
+            'عدد الصحيح',
+            'النسبة',
+            'مصحح'
+        ];
+        const translateGrade = (g) => {
+            switch (g) {
+                case '3MIDDLE': return 'الثالث الإعدادي';
+                case '1HIGH': return 'الأول الثانوي';
+                case '2HIGH': return 'الثاني الثانوي';
+                case '3HIGH': return 'الثالث الثانوي';
+                default: return g || '';
+            }
+        };
+        const translateGroup = (gr) => {
+            switch (gr) {
+                case 'MINYAT-EL-NASR': return 'منية النصر';
+                case 'RIYAD': return 'الرياض';
+                case 'MEET-HADID': return 'ميت حديد';
+                default: return gr || '';
+            }
+        };
+        const computeCorrect = (testType, correctAnswersRaw, studentAnswersRaw) => {
+            try {
+                let correctAnswers = correctAnswersRaw;
+                if (typeof correctAnswersRaw === 'string') {
+                    try {
+                        correctAnswers = JSON.parse(correctAnswersRaw);
+                    }
+                    catch {
+                        correctAnswers = null;
+                    }
+                }
+                let studentAnswers = studentAnswersRaw;
+                if (typeof studentAnswersRaw === 'string') {
+                    try {
+                        studentAnswers = JSON.parse(studentAnswersRaw);
+                    }
+                    catch {
+                        studentAnswers = null;
+                    }
+                }
+                if (!correctAnswers)
+                    return { correct: 0, total: 0 };
+                if (testType === 'MCQ') {
+                    const questions = correctAnswers.questions || [];
+                    const total = questions.length;
+                    let correct = 0;
+                    const stuAnsArr = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : [];
+                    for (const q of questions) {
+                        const sa = (stuAnsArr || []).find((a) => a.id === q.id);
+                        if (sa && sa.answer === q.correct)
+                            correct++;
+                    }
+                    return { correct, total };
+                }
+                if (testType === 'BUBBLE_SHEET' || testType === 'PHYSICAL_SHEET') {
+                    const correctMap = correctAnswers.answers || correctAnswers;
+                    const studentMap = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : {};
+                    const keys = Object.keys(correctMap || {});
+                    const total = keys.length;
+                    let correct = 0;
+                    for (const k of keys) {
+                        const expected = (correctMap[k] || '').toString();
+                        const given = (studentMap && (studentMap[k] || '')).toString();
+                        if (given && expected && given === expected)
+                            correct++;
+                    }
+                    return { correct, total };
+                }
+            }
+            catch (e) {
+            }
+            return { correct: 0, total: 0 };
+        };
+        const outRows = [];
+        for (const r of rows) {
+            const testType = r.test_type || '';
+            const ca = r.correct_answers || null;
+            const answers = r.answers || null;
+            const { correct, total } = computeCorrect(testType, ca, answers);
+            const pct = (total > 0) ? (Math.round((correct / total) * 10000) / 100) : (r.score ?? '');
+            const gradeLabel = translateGrade(r.grade);
+            const groupLabel = translateGroup(r.student_group);
+            outRows.push([
+                r.submission_id,
+                r.test_id,
+                r.test_title,
+                r.student_id,
+                r.student_name,
+                r.phone_number,
+                gradeLabel,
+                groupLabel,
+                correct,
+                pct,
+                r.graded ? 'نعم' : 'لا'
+            ]);
+        }
+        return { header, rows: outRows };
     }
 }
 export default new TestService();

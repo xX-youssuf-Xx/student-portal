@@ -82,7 +82,7 @@ const handleArrayUpload = (req, res, next) => {
 const multerInstance = multer({
     storage,
     fileFilter: imageFilter,
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 1024 * 1024 * 1024 }
 });
 export { handleArrayUpload };
 export const upload = multerInstance;
@@ -155,7 +155,7 @@ class TestController {
                     ...img,
                     image_url: img.image_path.startsWith('http')
                         ? img.image_path
-                        : `${process.env.API_BASE_URL || 'http://localhost:3000'}/${img.image_path.replace(/\\/g, '/')}`
+                        : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
                 }))
             };
             res.json({ test: testWithImageUrls });
@@ -214,7 +214,7 @@ class TestController {
                     ...img,
                     image_url: img.image_path.startsWith('http')
                         ? img.image_path
-                        : `${process.env.API_BASE_URL || 'http://localhost:3000'}/${img.image_path.replace(/\\/g, '/')}`
+                        : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
                 }))
             } : null;
             res.json({ test: testWithImageUrls });
@@ -315,6 +315,30 @@ class TestController {
         }
         catch (error) {
             console.error('Error grading submission:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+    async deleteSubmission(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: 'Submission ID is required' });
+                return;
+            }
+            const submissionId = parseInt(id, 10);
+            if (isNaN(submissionId)) {
+                res.status(400).json({ message: 'Invalid submission ID' });
+                return;
+            }
+            const success = await testService.deleteSubmission(submissionId);
+            if (!success) {
+                res.status(404).json({ message: 'Submission not found' });
+                return;
+            }
+            res.status(204).send();
+        }
+        catch (error) {
+            console.error('Error deleting submission:', error);
             res.status(500).json({ message: 'Internal server error' });
         }
     }
@@ -651,6 +675,115 @@ class TestController {
         }
         catch (error) {
             console.error('Error in gradePhysicalBatch:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+    async getEligibleStudents(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: 'Test ID is required' });
+                return;
+            }
+            const testId = parseInt(id, 10);
+            if (isNaN(testId)) {
+                res.status(400).json({ message: 'Invalid test ID' });
+                return;
+            }
+            const students = await testService.getEligibleStudentsForTest(testId);
+            res.json({ students });
+        }
+        catch (error) {
+            console.error('Error fetching eligible students:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+    async includeStudents(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: 'Test ID is required' });
+                return;
+            }
+            const testId = parseInt(id, 10);
+            if (isNaN(testId)) {
+                res.status(400).json({ message: 'Invalid test ID' });
+                return;
+            }
+            const raw = req.body?.student_ids ?? req.body?.students ?? req.body?.studentIds;
+            let studentIds = [];
+            if (Array.isArray(raw)) {
+                studentIds = raw.map(Number).filter(n => !isNaN(n));
+            }
+            else if (typeof raw === 'string' && raw.trim() !== '') {
+                try {
+                    const parsed = JSON.parse(raw);
+                    studentIds = parsed.map((v) => Number(v)).filter((n) => !isNaN(n));
+                }
+                catch {
+                    studentIds = [];
+                }
+            }
+            if (!studentIds.length) {
+                res.status(400).json({ message: 'student_ids array is required' });
+                return;
+            }
+            const result = await testService.includeStudentsForTest(testId, studentIds);
+            res.json(result);
+        }
+        catch (error) {
+            console.error('Error including students:', error);
+            if (error.message?.includes('PHYSICAL_SHEET')) {
+                res.status(400).json({ message: error.message });
+            }
+            else {
+                res.status(500).json({ message: 'Internal server error' });
+            }
+        }
+    }
+    async exportRankings(req, res) {
+        try {
+            const raw = req.body?.test_ids ?? req.body?.tests ?? req.body?.testIds;
+            let testIds = [];
+            if (Array.isArray(raw))
+                testIds = raw.map(Number).filter(n => !isNaN(n));
+            else if (typeof raw === 'string' && raw.trim() !== '') {
+                try {
+                    const parsed = JSON.parse(raw);
+                    testIds = parsed.map((v) => Number(v)).filter((n) => !isNaN(n));
+                }
+                catch {
+                    testIds = [];
+                }
+            }
+            if (!testIds.length) {
+                res.status(400).json({ message: 'test_ids array is required' });
+                return;
+            }
+            const { header, rows } = await testService.exportCombinedRankingsRows(testIds);
+            const ExcelJS = await import('exceljs');
+            const workbook = new ExcelJS.Workbook();
+            const sheet = workbook.addWorksheet('الترتيب');
+            sheet.addRow(header);
+            for (const r of rows) {
+                sheet.addRow(r);
+            }
+            sheet.columns.forEach((col) => {
+                let max = 10;
+                col.eachCell?.({ includeEmpty: true }, (cell) => {
+                    const val = cell && cell.value ? String(cell.value) : '';
+                    if (val.length > max)
+                        max = val.length;
+                });
+                col.width = Math.min(Math.max(max + 2, 10), 60);
+            });
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename="rankings.xlsx"');
+            await workbook.xlsx.write(res);
+            res.end();
+        }
+        catch (error) {
+            console.error('Error exporting rankings:', error);
             res.status(500).json({ message: 'Internal server error' });
         }
     }

@@ -12,7 +12,11 @@ router.get('/tests/:id/submissions', authenticateToken, requireAdmin, testContro
 router.patch('/submissions/:id/grade', authenticateToken, requireAdmin, testController.gradeSubmission);
 router.get('/tests/:id/submissions/:submissionId', authenticateToken, requireAdmin, testController.getSubmissionWithTest);
 router.patch('/submissions/:id/manual-grades', authenticateToken, requireAdmin, testController.setManualGrades);
+router.delete('/submissions/:id', authenticateToken, requireAdmin, testController.deleteSubmission);
 router.post('/tests/:id/grade-physical-batch', authenticateToken, requireAdmin, upload.any(), testController.gradePhysicalBatch);
+router.get('/tests/:id/eligible-students', authenticateToken, requireAdmin, testController.getEligibleStudents);
+router.post('/tests/:id/include-students', authenticateToken, requireAdmin, testController.includeStudents);
+router.post('/tests/export-rankings', authenticateToken, requireAdmin, testController.exportRankings);
 router.patch('/submissions/:id/answers', authenticateToken, requireAdmin, testController.updateBubbleAnswers);
 router.get('/available-tests', authenticateToken, testController.getAvailableTests);
 router.get('/test-history', authenticateToken, testController.getStudentTestHistory);

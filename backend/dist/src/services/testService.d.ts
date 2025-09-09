@@ -45,6 +45,20 @@ declare class TestService {
         image_path: string;
         display_order: number;
     }>>;
+    getEligibleStudentsForTest(testId: number): Promise<Array<{
+        id: number;
+        name: string;
+        phone_number: string;
+        grade: string;
+        student_group: string | null;
+    }>>;
+    includeStudentsForTest(testId: number, studentIds: number[]): Promise<{
+        created: Array<{
+            student_id: number;
+            submission_id: number;
+        }>;
+        skipped: number[];
+    }>;
     updateTest(testId: number, testData: Partial<CreateTestData>): Promise<Test | null>;
     deleteTest(testId: number): Promise<boolean>;
     updateViewPermission(testId: number, viewPermission: boolean): Promise<Test | null>;
@@ -60,6 +74,7 @@ declare class TestService {
     private computeScoreWithManual;
     setManualGrades(submissionId: number, grades: Record<string, number>, teacherComment?: string): Promise<any | null>;
     uploadBubbleSheet(testId: number, studentId: number, filePath: string): Promise<TestAnswer | null>;
+    deleteSubmission(submissionId: number): Promise<boolean>;
     private calculateScore;
     addTestImages(images: Array<{
         testId: number;
@@ -70,6 +85,11 @@ declare class TestService {
     updateTestImageOrder(testId: number, imageIds: number[]): Promise<void>;
     deleteTestImage(imageId: number): Promise<boolean>;
     deleteTestImages(testId: number): Promise<boolean>;
+    exportCombinedRankings(testIds: number[]): Promise<string>;
+    exportCombinedRankingsRows(testIds: number[]): Promise<{
+        header: string[];
+        rows: Array<any[]>;
+    }>;
 }
 declare const _default: TestService;
 export default _default;
