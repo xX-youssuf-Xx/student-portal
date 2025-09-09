@@ -28,4 +28,4 @@ router.get('/tests/:id/images', authenticateToken, testController.getTestImages)
 router.post('/tests/:id/upload-bubble-sheet', authenticateToken, upload.single('bubbleSheet'), testController.uploadBubbleSheet);
 router.get('/tests/:id/submissions/rank', authenticateToken, testController.getStudentRank);
 export default router;
-//# sourceMappingURL=test.js.map
+//# sourceMappingURL=test.js.map idk
