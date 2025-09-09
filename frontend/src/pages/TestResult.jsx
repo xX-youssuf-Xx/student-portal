@@ -50,7 +50,7 @@ const TestResult = () => {
       return <div>خطأ في تحميل الإجابات</div>;
     }
     const correctAnswers = result.correct_answers_visible.answers;
-    const API_BASE = (import.meta?.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : 'https://studentportal.egypt-tech.com/';
+    const API_BASE = (import.meta?.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : 'https://studentportal.egypt-tech.com';
     const imgSrc = studentAnswers?.bubble_image_path ? `${API_BASE}/${studentAnswers.bubble_image_path}` : null;
 
     return (
@@ -353,6 +353,55 @@ const TestResult = () => {
                 {result.visible_score >= 50 && result.visible_score < 70 && 'جيد، يمكنك التحسن أكثر'}
                 {result.visible_score < 50 && 'يحتاج إلى مراجعة المادة'}
               </p>
+                {/* Show raw correct/total and percentage */}
+                {(() => {
+                  // Compute correct and total from visible answers and correct_answers_visible when available
+                  const computeCorrectTotal = () => {
+                    try {
+                      const ca = result.correct_answers_visible;
+                      let studentAnswers = result.visible_answers;
+                      if (!ca) return null;
+                      if (typeof studentAnswers === 'string') studentAnswers = JSON.parse(studentAnswers);
+
+                      if (result.test_type === 'MCQ') {
+                        const questions = ca.questions || [];
+                        const total = questions.length;
+                        let correct = 0;
+                        const stuArr = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : [];
+                        for (const q of questions) {
+                          const sa = (stuArr || []).find(a => a.id === q.id);
+                          if (sa && sa.answer === q.correct) correct++;
+                          // For OPEN questions, count as correct only if manual grade > 0 (handled elsewhere)
+                        }
+                        return { correct, total };
+                      }
+
+                      if (result.test_type === 'BUBBLE_SHEET' || result.test_type === 'PHYSICAL_SHEET') {
+                        const correctMap = ca.answers || ca;
+                        const studentMap = studentAnswers && (studentAnswers.answers || studentAnswers) ? (studentAnswers.answers || studentAnswers) : {};
+                        const keys = Object.keys(correctMap || {});
+                        const total = keys.length;
+                        let correct = 0;
+                        for (const k of keys) {
+                          const expected = (correctMap[k] || '').toString();
+                          const given = (studentMap && (studentMap[k] || '')).toString();
+                          if (given && expected && given === expected) correct++;
+                        }
+                        return { correct, total };
+                      }
+                    } catch (e) {
+                      // ignore
+                    }
+                    return null;
+                  };
+
+                  const stats = computeCorrectTotal();
+                  if (!stats) return <p style={{ marginTop: 8 }}><strong>الدرجة:</strong> غير متاحة</p>;
+                  const pct = stats.total > 0 ? Math.round((stats.correct / stats.total) * 10000) / 100 : 0;
+                  return (
+                    <p style={{ marginTop: 8 }}><strong>الدرجة:</strong> {stats.correct} من {stats.total} — {pct}%</p>
+                  );
+                })()}
               
               {rank !== null && (
                 <div className="rank-display">
@@ -405,7 +454,7 @@ const TestResult = () => {
           <div className="test-pdf-reference">
             <h3>ورقة الامتحان للمراجعة</h3>
             <iframe
-              src={`https://studentportal.egypt-tech.com//${result.pdf_file_path}`}
+              src={`https://studentportal.egypt-tech.com/${result.pdf_file_path}`}
               width="100%"
               height="600px"
               title="ورقة الامتحان"

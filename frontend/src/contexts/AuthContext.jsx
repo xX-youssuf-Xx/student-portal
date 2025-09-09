@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 // Set global API base URL for all axios requests
-axios.defaults.baseURL = 'https://studentportal.egypt-tech.com//api';
+axios.defaults.baseURL = 'https://studentportal.egypt-tech.com/api';
 
 const AuthContext = createContext();
 

@@ -12,6 +12,7 @@ const TestManagement = () => {
   const [editingTest, setEditingTest] = useState(null);
   const [selectedTest, setSelectedTest] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   useEffect(() => {
     fetchTests();
@@ -125,6 +126,13 @@ const TestManagement = () => {
         >
           إضافة اختبار جديد
         </button>
+        <button
+          className="btn-outline"
+          onClick={() => setShowExportModal(true)}
+          style={{ marginInlineStart: 8 }}
+        >
+          تصدير الترتيب
+        </button>
       </div>
 
       {/* Tests Grid */}
@@ -225,6 +233,14 @@ const TestManagement = () => {
           submissions={submissions}
           onClose={() => setSelectedTest(null)}
           onGradeUpdate={fetchTests}
+        />
+      )}
+
+      {/* Export Modal - rendered at top-level where showExportModal state is defined */}
+      {showExportModal && (
+        <ExportModal
+          tests={tests}
+          onClose={() => setShowExportModal(false)}
         />
       )}
     </div>
@@ -417,6 +433,11 @@ const TestModal = ({ test, onClose, onSave }) => {
           formDataToSend.append(`existing_images[${index}]`, image.url);
         }
       });
+
+      // If any new image files were provided, instruct server to replace existing images
+      if (images.some(img => img.file)) {
+        formDataToSend.append('replaceImages', 'true');
+      }
 
       // Do not send image_order here. Image ordering is managed server-side by display_order.
 
@@ -770,6 +791,8 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const [answersDetail, setAnswersDetail] = useState(null); // { test, submission, correct_answers }
   const [answersMap, setAnswersMap] = useState({});
   const [answersCount, setAnswersCount] = useState(50);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imageUrl, setImageUrl] = useState(null);
 
   useEffect(() => {
     setLocalSubs(submissions || []);
@@ -835,6 +858,17 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
 
       setManualDetail(detail);
       setGradeData(prev => ({ ...prev, gradesPct }));
+      // If submission has image path, preload image URL for quick view
+      try {
+        const imgPath = detail?.submission?.answers && (detail.submission.answers.bubble_image_path || detail.submission.answers.file_path || detail.submission.answers.bubble_image);
+        if (imgPath) {
+          setImageUrl(makeImageUrl(imgPath));
+        } else {
+          setImageUrl(null);
+        }
+      } catch (e) {
+        setImageUrl(null);
+      }
     } catch (error) {
       console.error('Error fetching submission for grading:', error);
       alert('تعذر تحميل بيانات المشاركة للتصحيح اليدوي');
@@ -842,6 +876,14 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
     } finally {
       setLoadingDetail(false);
     }
+  };
+
+  const makeImageUrl = (p) => {
+    if (!p) return null;
+    if (p.startsWith('http')) return p;
+    // normalize slashes
+    const normalized = p.replace(/\\/g, '/').replace(/^\//, '');
+    return `${window.location.origin}/${normalized}`;
   };
 
   const handleManualGradeChange = (qid, value) => {
@@ -1067,6 +1109,37 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                   >
                     عرض/تصحيح يدوي
                   </button>
+                  {((submission.answers && (submission.answers.file_path || submission.answers.bubble_image_path || submission.answers.bubble_image)) || submission.bubble_image_path) && (
+                    <button
+                      className="btn-outline"
+                      style={{ marginInlineStart: 8 }}
+                      onClick={() => {
+                        const img = (submission.answers && (submission.answers.bubble_image_path || submission.answers.file_path || submission.answers.bubble_image)) || submission.bubble_image_path;
+                        const url = makeImageUrl(img);
+                        setImageUrl(url);
+                        setShowImageModal(true);
+                      }}
+                    >
+                      عرض صورة البابل
+                    </button>
+                  )}
+                  <button
+                    className="btn-danger"
+                    style={{ marginInlineStart: 8 }}
+                    onClick={async () => {
+                      if (!window.confirm('هل أنت متأكد من حذف هذه المشاركة؟ هذا سيحذف الملفات المرتبطة أيضاً.')) return;
+                      try {
+                        await axios.delete(`/submissions/${submission.id}`);
+                        await refreshSubmissions();
+                        onGradeUpdate && onGradeUpdate();
+                      } catch (e) {
+                        console.error('Failed to delete submission', e);
+                        alert('فشل حذف المشاركة');
+                      }
+                    }}
+                  >
+                    حذف المشاركة
+                  </button>
                   {test.test_type === 'PHYSICAL_SHEET' && (
                     <button
                       className="btn-outline"
@@ -1146,7 +1219,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
           )}
         </div>
 
-        {showBatchModal && (
+  {showBatchModal && (
           <BatchGradeModal
             test={test}
             submissions={localSubs}
@@ -1160,6 +1233,19 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
             onClose={() => setShowIncludeModal(false)}
             onDone={async () => { setShowIncludeModal(false); await refreshSubmissions(); onGradeUpdate && onGradeUpdate(); }}
           />
+        )}
+        {showImageModal && imageUrl && (
+          <div className="modal-overlay">
+            <div className="modal-content" style={{ maxWidth: 900, width: '95%' }}>
+              <div className="modal-header">
+                <h2>صورة المشاركة</h2>
+                <button className="close-btn" onClick={() => { setShowImageModal(false); setImageUrl(null); }}>×</button>
+              </div>
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <img src={imageUrl} alt="Bubble submission" style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }} />
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -1326,6 +1412,9 @@ const IncludeStudentsModal = ({ test, onClose, onDone }) => {
     fetchEligible();
   }, [test.id]);
 
+  const [includeQuery, setIncludeQuery] = useState('');
+  const filteredStudents = students.filter(s => String(s.name || '').toLowerCase().includes(includeQuery.toLowerCase()) || String(s.id).includes(includeQuery));
+
   // Local translations (avoid referencing outer-scope helpers)
   const translateGrade = (grade) => {
     switch (grade) {
@@ -1383,10 +1472,14 @@ const IncludeStudentsModal = ({ test, onClose, onDone }) => {
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
         <div style={{ padding: 12 }}>
-          {loading ? <p>جاري التحميل...</p> : (
+                {loading ? <p>جاري التحميل...</p> : (
             students.length === 0 ? <p>لا يوجد طلاب مؤهلين لهذا الاختبار</p> : (
-              <div style={{ maxHeight: '50vh', overflow: 'auto' }}>
-                {students.map(s => (
+              <div>
+                <div style={{ marginBottom: 8 }}>
+                  <input type="text" placeholder="بحث بالاسم أو ID" value={includeQuery} onChange={e => setIncludeQuery(e.target.value)} style={{ width: '100%', padding: 8 }} />
+                </div>
+                <div style={{ maxHeight: '50vh', overflow: 'auto' }}>
+                {filteredStudents.map(s => (
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: 8, borderBottom: '1px solid #eee' }}>
                     <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
                     <div style={{ marginInlineStart: 8, flex: 1 }}>
@@ -1396,6 +1489,7 @@ const IncludeStudentsModal = ({ test, onClose, onDone }) => {
                     <div style={{ minWidth: 120, textAlign: 'right' }}>{translateGrade(s.grade)}{s.student_group ? ` — ${translateGroup(s.student_group)}` : ''}</div>
                   </div>
                 ))}
+                </div>
               </div>
             )
           )}
@@ -1403,6 +1497,76 @@ const IncludeStudentsModal = ({ test, onClose, onDone }) => {
         <div className="form-actions" style={{ padding: 12 }}>
           <button className="btn-secondary" onClick={onClose}>إلغاء</button>
           <button className="btn-primary" onClick={handleInclude} disabled={submitting || loading}>{submitting ? 'جارٍ الإضافة...' : 'إضافة الطلاب'}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Export Rankings Modal
+const ExportModal = ({ tests, onClose }) => {
+  const [query, setQuery] = useState('');
+  const [filtered, setFiltered] = useState(tests || []);
+  const [selected, setSelected] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    setFiltered(tests.filter(t => t.title.toLowerCase().includes(query.toLowerCase())));
+  }, [query, tests]);
+
+  const toggle = (id) => {
+    setSelected(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
+  const handleExport = async () => {
+    if (!selected.size) { alert('يرجى اختيار اختبار واحد على الأقل'); return; }
+    try {
+      setExporting(true);
+      const body = { test_ids: Array.from(selected) };
+  const res = await axios.post('/tests/export-rankings', body, { responseType: 'blob' });
+  const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+  a.download = 'rankings.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      onClose();
+    } catch (e) {
+      console.error('Export failed', e);
+      alert('فشل التصدير');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: 800 }}>
+        <div className="modal-header">
+          <h2>تصدير الترتيب المجموع</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div style={{ padding: 12 }}>
+          <input type="text" placeholder="بحث عن اختبار" value={query} onChange={e => setQuery(e.target.value)} style={{ width: '100%', padding: 8, marginBottom: 12 }} />
+          <div style={{ maxHeight: '50vh', overflow: 'auto' }}>
+            {filtered.map(t => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', padding: 8, borderBottom: '1px solid #eee' }}>
+                <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
+                <div style={{ marginInlineStart: 8 }}>{t.title} — {t.grade}{t.student_group ? ` — ${t.student_group}` : ''}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="form-actions" style={{ padding: 12 }}>
+          <button className="btn-secondary" onClick={onClose}>إلغاء</button>
+          <button className="btn-primary" onClick={handleExport} disabled={exporting}>{exporting ? 'جارٍ التصدير...' : 'تصدير'}</button>
         </div>
       </div>
     </div>
