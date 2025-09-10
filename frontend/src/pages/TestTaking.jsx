@@ -55,12 +55,16 @@ const TestTaking = () => {
   
   // Save timeLeft to localStorage every second
   useEffect(() => {
+    // Persist the current timeLeft on every change (avoid interval with stale closure)
     if (timeLeft !== null) {
-      const timer = setInterval(() => {
-        localStorage.setItem(`test_${testId}_time`, timeLeft.toString());
-      }, 1000);
-      return () => clearInterval(timer);
+      try {
+        localStorage.setItem(`test_${testId}_time`, String(timeLeft));
+      } catch (err) {
+        // ignore quota errors in some environments
+        console.warn('Could not persist test time to localStorage', err);
+      }
     }
+    // No cleanup required
   }, [timeLeft, testId]);
 
   useEffect(() => {
@@ -149,10 +153,12 @@ const TestTaking = () => {
   // HELPER FUNCTIONS (these can be anywhere but are typically after hooks)
   const fetchTest = async () => {
     try {
+      console.debug('[TestTaking] fetchTest start', { testId, env: window?.location?.hostname });
       // First get basic test info
       const startResponse = await axios.get(`/tests/${testId}/start`);
       const testData = startResponse.data.test;
       const submissionMeta = startResponse.data.test?.submission || null;
+      console.debug('[TestTaking] startResponse.data', startResponse.data);
       
       // For MCQ tests, get questions separately
       if (testData.test_type === 'MCQ') {
@@ -177,22 +183,57 @@ const TestTaking = () => {
         }
       }
       
+      // Helper: robustly parse server timestamps (handles seconds, naive datetimes, ISO)
+      const parseServerTimestamp = (ts) => {
+        if (!ts) return null;
+        // If numeric (seconds or ms)
+        if (typeof ts === 'number' || /^[0-9]+$/.test(String(ts))) {
+          const n = Number(ts);
+          // If looks like seconds (<= 10 digits), multiply
+          if (String(n).length <= 10) return n * 1000;
+          return n;
+        }
+        // If string already has timezone or Z, let Date parse it
+        if (/[zZ]|[+-][0-9]{2}:?[0-9]{2}/.test(ts)) {
+          const p = Date.parse(ts);
+          return Number.isNaN(p) ? null : p;
+        }
+        // If string looks like 'YYYY-MM-DD HH:MM:SS' (naive), convert to UTC by adding Z
+        const naiveSpaceDatetime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts);
+        if (naiveSpaceDatetime) {
+          const iso = ts.replace(' ', 'T') + 'Z';
+          const p = Date.parse(iso);
+          return Number.isNaN(p) ? null : p;
+        }
+        // Fallback to Date.parse
+        const parsed = Date.parse(ts);
+        return Number.isNaN(parsed) ? null : parsed;
+      };
+
       // Set timer if duration is specified. Use submission.created_at to resume timer if available.
       if (testData.duration_minutes) {
         if (submissionMeta && submissionMeta.created_at) {
-          const startedAt = new Date(submissionMeta.created_at).getTime();
-          const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-          const remaining = testData.duration_minutes * 60 - elapsed;
-          if (remaining <= 0) {
-            // After data loads, if time is truly up, auto-submit normally
+          const startedAtMs = parseServerTimestamp(submissionMeta.created_at);
+          const nowMs = Date.now();
+          const elapsed = startedAtMs ? Math.floor((nowMs - startedAtMs) / 1000) : null;
+          const remaining = elapsed !== null ? testData.duration_minutes * 60 - elapsed : null;
+          console.debug('[TestTaking] computed timer', { duration_minutes: testData.duration_minutes, startedAt: submissionMeta.created_at, startedAtMs, nowMs, elapsed, remaining });
+          if (remaining === null) {
+            // couldn't parse server timestamp; start full duration to be safe
+            setTimeLeft(testData.duration_minutes * 60);
+          } else if (remaining <= 0) {
+            // If the server says time already expired, avoid immediate forced submit here.
+            // Defer to the existing timer effect and mark a pending auto-submit so we can log and handle consistently.
             setTimeLeft(0);
-            handleAutoSubmit();
+            setAutoSubmitPending(true);
+            console.warn('[TestTaking] remaining <= 0 — deferring auto-submit via timer effect', { remaining });
           } else {
             setTimeLeft(remaining);
           }
           setTimerReady(true);
         } else {
           // No server-side submission timestamp: start from full duration
+          console.debug('[TestTaking] no submission.created_at, starting full duration', { duration_minutes: testData.duration_minutes });
           setTimeLeft(testData.duration_minutes * 60);
           setTimerReady(true);
         }
