@@ -36,6 +36,7 @@ const TestTaking = () => {
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [showSubmittedModal, setShowSubmittedModal] = useState(false); // for PHYSICAL_SHEET ungraded submissions
   const [timerReady, setTimerReady] = useState(false); // countdown only runs after true time is set
+  const [allowImmediateAutoSubmit, setAllowImmediateAutoSubmit] = useState(false); // guard to avoid immediate auto-submit on load
 
   // Track window size to toggle mobile layout (single-column bubble sheet)
   useEffect(() => {
@@ -80,7 +81,12 @@ const TestTaking = () => {
       }, 1000);
       return () => clearTimeout(timer);
     } else if (timeLeft === 0) {
-      handleAutoSubmit();
+      // Only auto-submit when allowed. This prevents immediate auto-submit when server says remaining <= 0
+      if (allowImmediateAutoSubmit) {
+        handleAutoSubmit();
+      } else {
+        console.warn('[TestTaking] timeLeft is 0 but immediate auto-submit is disabled (likely set from server).');
+      }
     }
   }, [timeLeft, timerReady]);
 
@@ -198,10 +204,23 @@ const TestTaking = () => {
           const p = Date.parse(ts);
           return Number.isNaN(p) ? null : p;
         }
-        // If string looks like 'YYYY-MM-DD HH:MM:SS' (naive), convert to UTC by adding Z
+        // If string looks like 'YYYY-MM-DDTHH:MM' or 'YYYY-MM-DDTHH:MM:SS' without timezone, treat as local
+        // Examples seen in production: '2025-09-11T15:19'
+        const naiveLocalIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(ts);
+        if (naiveLocalIso) {
+          // Construct a Date from components in local timezone to avoid shifting by UTC incorrectly
+          try {
+            const dt = new Date(ts);
+            const p = dt.getTime();
+            return Number.isNaN(p) ? null : p;
+          } catch (e) {
+            return null;
+          }
+        }
+        // If string looks like 'YYYY-MM-DD HH:MM:SS' (naive), convert to local by replacing space with T
         const naiveSpaceDatetime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts);
         if (naiveSpaceDatetime) {
-          const iso = ts.replace(' ', 'T') + 'Z';
+          const iso = ts.replace(' ', 'T');
           const p = Date.parse(iso);
           return Number.isNaN(p) ? null : p;
         }
@@ -223,10 +242,17 @@ const TestTaking = () => {
             setTimeLeft(testData.duration_minutes * 60);
           } else if (remaining <= 0) {
             // If the server says time already expired, avoid immediate forced submit here.
-            // Defer to the existing timer effect and mark a pending auto-submit so we can log and handle consistently.
+            // Set timeLeft to 0 but do not allow immediate auto-submit until the page has been visible
+            // for a short grace period. This prevents accidental immediate closure in production when
+            // timestamps are parsed differently.
             setTimeLeft(0);
             setAutoSubmitPending(true);
             console.warn('[TestTaking] remaining <= 0 — deferring auto-submit via timer effect', { remaining });
+            // After a short grace period (2s), permit immediate auto-submit if still at 0 and timerReady
+            setTimeout(() => {
+              setAllowImmediateAutoSubmit(true);
+              console.debug('[TestTaking] allowImmediateAutoSubmit enabled after grace period');
+            }, 2000);
           } else {
             setTimeLeft(remaining);
           }
