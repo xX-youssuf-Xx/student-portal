@@ -21,6 +21,18 @@ const formatLocal = (d: Date | string | null) => {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 };
 
+// Helper: format Date as UTC ISO and epoch ms
+const formatUtc = (d: Date | string | null) => {
+  if (!d) return null;
+  const date = (d instanceof Date) ? d : new Date(d as string);
+  return date.toISOString();
+};
+const formatMs = (d: Date | string | null) => {
+  if (!d) return null;
+  const date = (d instanceof Date) ? d : new Date(d as string);
+  return date.getTime();
+};
+
 // Helper: return current local timestamp string compatible with DB comparisons
 const nowLocalString = () => {
   const d = new Date();
@@ -52,10 +64,25 @@ class TestService {
   private normalizeSubmission(submission: any) {
     if (!submission) return null;
     const s = { ...submission };
-    // Format timestamps to local wall-time strings
-    if (s.created_at) s.created_at = formatLocal(s.created_at);
-    if (s.updated_at) s.updated_at = formatLocal(s.updated_at);
-    if (s.submitted_at) s.submitted_at = formatLocal(s.submitted_at);
+    // Format timestamps to local wall-time strings and include UTC/ms variants
+    if (s.created_at) {
+      const _d = s.created_at;
+      s.created_at = formatLocal(_d);
+      s.created_at_utc = formatUtc(_d);
+      s.created_at_ms = formatMs(_d);
+    }
+    if (s.updated_at) {
+      const _d = s.updated_at;
+      s.updated_at = formatLocal(_d);
+      s.updated_at_utc = formatUtc(_d);
+      s.updated_at_ms = formatMs(_d);
+    }
+    if (s.submitted_at) {
+      const _d = s.submitted_at;
+      s.submitted_at = formatLocal(_d);
+      s.submitted_at_utc = formatUtc(_d);
+      s.submitted_at_ms = formatMs(_d);
+    }
     // Parse answers if stored as JSON string
     try {
       if (s.answers && typeof s.answers === 'string') {
@@ -270,8 +297,14 @@ class TestService {
     // Format timestamps as local wall-time strings before returning
     const row = result.rows[0];
     if (row) {
-      row.start_time = formatLocal(row.start_time);
-      row.end_time = formatLocal(row.end_time);
+  // keep local wall-time for backward compatibility
+  row.start_time = formatLocal(row.start_time);
+  row.end_time = formatLocal(row.end_time);
+  // also include unambiguous UTC ISO and epoch ms
+  row.start_time_utc = formatUtc(row.start_time);
+  row.end_time_utc = formatUtc(row.end_time);
+  row.start_time_ms = formatMs(row.start_time);
+  row.end_time_ms = formatMs(row.end_time);
     }
     return row;
   }
@@ -288,11 +321,15 @@ class TestService {
     `;
     
     const result = await database.query(query);
-    // Format timestamps to preserve wall-time when serializing
+    // Format timestamps to preserve wall-time when serializing and include UTC/ms
     return (result.rows || []).map(r => ({
       ...r,
       start_time: formatLocal(r.start_time),
-      end_time: formatLocal(r.end_time)
+      end_time: formatLocal(r.end_time),
+      start_time_utc: formatUtc(r.start_time),
+      end_time_utc: formatUtc(r.end_time),
+      start_time_ms: formatMs(r.start_time),
+      end_time_ms: formatMs(r.end_time)
     }));
   }
 
@@ -317,8 +354,12 @@ class TestService {
       // Format timestamps as local wall-time strings before returning
       const row = testResult.rows[0];
       if (row) {
-        row.start_time = formatLocal(row.start_time);
-        row.end_time = formatLocal(row.end_time);
+  row.start_time = formatLocal(row.start_time);
+  row.end_time = formatLocal(row.end_time);
+  row.start_time_utc = formatUtc(row.start_time);
+  row.end_time_utc = formatUtc(row.end_time);
+  row.start_time_ms = formatMs(row.start_time);
+  row.end_time_ms = formatMs(row.end_time);
       }
       return {
         ...row,
@@ -622,15 +663,23 @@ class TestService {
       // Add submission status from available test
       (testData as any).is_submitted = availableTest.is_submitted;
       // Ensure start/end times are local wall-time strings
-      (testData as any).start_time = formatLocal((testData as any).start_time);
-      (testData as any).end_time = formatLocal((testData as any).end_time);
+  (testData as any).start_time = formatLocal((testData as any).start_time);
+  (testData as any).end_time = formatLocal((testData as any).end_time);
+  (testData as any).start_time_utc = formatUtc((testData as any).start_time);
+  (testData as any).end_time_utc = formatUtc((testData as any).end_time);
+  (testData as any).start_time_ms = formatMs((testData as any).start_time);
+  (testData as any).end_time_ms = formatMs((testData as any).end_time);
       return testData;
     }
 
     // Ensure start/end times are local wall-time strings for non-MCQ
     if (fullTest) {
-      (fullTest as any).start_time = formatLocal((fullTest as any).start_time);
-      (fullTest as any).end_time = formatLocal((fullTest as any).end_time);
+  (fullTest as any).start_time = formatLocal((fullTest as any).start_time);
+  (fullTest as any).end_time = formatLocal((fullTest as any).end_time);
+  (fullTest as any).start_time_utc = formatUtc((fullTest as any).start_time);
+  (fullTest as any).end_time_utc = formatUtc((fullTest as any).end_time);
+  (fullTest as any).start_time_ms = formatMs((fullTest as any).start_time);
+  (fullTest as any).end_time_ms = formatMs((fullTest as any).end_time);
     }
     return fullTest;
   }
@@ -668,8 +717,13 @@ class TestService {
     delete testData.correct_answers;
 
     return {
-      ...testData,
-      submission: submission ? this.normalizeSubmission(submission) : null
+  ...testData,
+  // also include UTC/ms for test times to avoid ambiguity on frontend
+  start_time_utc: formatUtc((testData as any).start_time),
+  end_time_utc: formatUtc((testData as any).end_time),
+  start_time_ms: formatMs((testData as any).start_time),
+  end_time_ms: formatMs((testData as any).end_time),
+  submission: submission ? this.normalizeSubmission(submission) : null
     };
   }
 

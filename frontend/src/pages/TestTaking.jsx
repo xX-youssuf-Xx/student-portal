@@ -232,11 +232,13 @@ const TestTaking = () => {
       // Set timer if duration is specified. Use submission.created_at to resume timer if available.
       if (testData.duration_minutes) {
         if (submissionMeta && submissionMeta.created_at) {
-          const startedAtMs = parseServerTimestamp(submissionMeta.created_at);
+          // Prefer explicit ms or UTC fields from backend if present
+          const bestTimestamp = submissionMeta.created_at_ms ?? submissionMeta.created_at_utc ?? submissionMeta.created_at;
+          const startedAtMs = parseServerTimestamp(bestTimestamp);
           const nowMs = Date.now();
           const elapsed = startedAtMs ? Math.floor((nowMs - startedAtMs) / 1000) : null;
           const remaining = elapsed !== null ? testData.duration_minutes * 60 - elapsed : null;
-          console.debug('[TestTaking] computed timer', { duration_minutes: testData.duration_minutes, startedAt: submissionMeta.created_at, startedAtMs, nowMs, elapsed, remaining });
+          console.debug('[TestTaking] computed timer', { duration_minutes: testData.duration_minutes, startedAt: submissionMeta.created_at, startedAt_ms_field: submissionMeta.created_at_ms, startedAt_utc_field: submissionMeta.created_at_utc, startedAtMs, nowMs, elapsed, remaining });
           if (remaining === null) {
             // couldn't parse server timestamp; start full duration to be safe
             setTimeLeft(testData.duration_minutes * 60);
