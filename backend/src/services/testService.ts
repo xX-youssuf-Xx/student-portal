@@ -22,15 +22,48 @@ const formatLocal = (d: Date | string | null) => {
 };
 
 // Helper: format Date as UTC ISO and epoch ms
+// If the incoming value is a timezone-naive string like "2025-09-12T03:35"
+// many JS engines interpret it as local time. To remove ambiguity when
+// admins save naive local timestamps, we explicitly append the server's
+// timezone offset (e.g. "+02:00") before parsing when no timezone is present.
+const hasTimezoneSuffix = (s: string) => /[zZ]$|[+\-]\d{2}:?\d{2}$/.test(s);
+const serverOffsetSuffix = () => {
+  const offMin = -new Date().getTimezoneOffset(); // e.g. 120 for +02:00
+  const sign = offMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offMin);
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+  const mm = String(abs % 60).padStart(2, '0');
+  return `${sign}${hh}:${mm}`;
+};
+
 const formatUtc = (d: Date | string | null) => {
   if (!d) return null;
-  const date = (d instanceof Date) ? d : new Date(d as string);
-  return date.toISOString();
+  if (d instanceof Date) return d.toISOString();
+  const s = String(d);
+  try {
+    if (hasTimezoneSuffix(s)) {
+      return new Date(s).toISOString();
+    }
+    // Append server offset and parse
+    return new Date(s + serverOffsetSuffix()).toISOString();
+  } catch (e) {
+    // Fallback: let Date try parsing whatever it can
+    return new Date(s).toISOString();
+  }
 };
+
 const formatMs = (d: Date | string | null) => {
   if (!d) return null;
-  const date = (d instanceof Date) ? d : new Date(d as string);
-  return date.getTime();
+  if (d instanceof Date) return d.getTime();
+  const s = String(d);
+  try {
+    if (hasTimezoneSuffix(s)) {
+      return new Date(s).getTime();
+    }
+    return new Date(s + serverOffsetSuffix()).getTime();
+  } catch (e) {
+    return new Date(s).getTime();
+  }
 };
 
 // Helper: return current local timestamp string compatible with DB comparisons
