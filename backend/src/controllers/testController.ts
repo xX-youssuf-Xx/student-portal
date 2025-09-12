@@ -511,7 +511,26 @@ class TestController {
       }
 
       const tests = await testService.getAvailableTestsForStudent(req.user.id);
-      res.json({ tests });
+      // Provide additional debug information to help diagnose timezone/availability issues
+      const now = new Date();
+      const allStartTimes = (tests || []).map(t => ({
+        id: (t as any).id,
+        title: (t as any).title,
+        start_time: (t as any).start_time,
+        start_time_utc: (t as any).start_time_utc,
+        start_time_ms: (t as any).start_time_ms
+      }));
+
+      res.json({
+        now: {
+          local: now.toString(),
+          utc: now.toISOString(),
+          ms: now.getTime()
+        },
+        available_count: (tests || []).length,
+        all_start_times: allStartTimes,
+        tests
+      });
     } catch (error) {
       console.error('Error getting available tests:', error);
       res.status(500).json({ message: 'Internal server error' });
