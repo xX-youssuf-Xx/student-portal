@@ -523,13 +523,13 @@ class TestController {
         id: (t as any).id,
         title: (t as any).title,
         start_time: (t as any).start_time,
-        start_time_cairo: (t as any).start_time_utc ? new Date((t as any).start_time_utc).toLocaleString('en-US', { timeZone: 'Africa/Cairo' }) : null,
+        start_time_cairo: cairoNow.toLocaleString('en-US'), // Just use regular toLocaleString since we already added 3 hours
         start_time_ms: (t as any).start_time_ms
       }));
 
       res.json({
         now: {
-          cairo: cairoNow.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
+          cairo: cairoNow.toLocaleString('en-US'), // Just use regular toLocaleString since we already added 3 hours
           utc: utcNow.toISOString(),
           ms: utcNow.getTime(),
           timezone: timezoneStr
