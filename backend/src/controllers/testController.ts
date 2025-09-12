@@ -512,24 +512,21 @@ class TestController {
 
       const tests = await testService.getAvailableTestsForStudent(req.user.id);
       
-      // Create a Cairo date (UTC+3)
+      // Use UTC now and convert to Cairo time using toLocaleString with Africa/Cairo timezone
       const utcNow = new Date();
-      // Create Cairo time (UTC+3) without timezone adjustments
-      const cairoNow = new Date(utcNow.getTime() + (3 * 60 * 60 * 1000)); // Add 3 hours for Cairo time
-      
-      // Format time info for Cairo timezone  
+      const cairoNowString = utcNow.toLocaleString('en-US', { timeZone: 'Africa/Cairo' });
       const timezoneStr = 'GMT+3';
       const allStartTimes = (tests || []).map(t => ({
         id: (t as any).id,
         title: (t as any).title,
         start_time: (t as any).start_time,
-        start_time_cairo: cairoNow.toLocaleString('en-US'), // Just use regular toLocaleString since we already added 3 hours
+        start_time_cairo: (t as any).start_time_utc ? new Date((t as any).start_time_utc).toLocaleString('en-US', { timeZone: 'Africa/Cairo' }) : null,
         start_time_ms: (t as any).start_time_ms
       }));
 
       res.json({
         now: {
-          cairo: cairoNow.toLocaleString('en-US'), // Just use regular toLocaleString since we already added 3 hours
+          cairo: cairoNowString,
           utc: utcNow.toISOString(),
           ms: utcNow.getTime(),
           timezone: timezoneStr
