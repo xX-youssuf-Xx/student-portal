@@ -612,34 +612,59 @@ class TestService {
     const result = await database.query(query, [studentId, student.grade, student.student_group]);
     const rows = result.rows || [];
 
-    // Get current time in Cairo timezone (+03:00)
-    const utcNow = new Date();
-    const cairoNowMs = utcNow.getTime() + (3 * 60 * 60 * 1000); // Add 3 hours for Cairo time (UTC+3)
-
+    // Get current time in milliseconds (UTC)
+    const nowUtcMs = Date.now();
+    
     const filtered = rows.filter((r: any) => {
       try {
-        // Use start_time_ms and end_time_ms for comparison
-        const startMs = r.start_time_ms ?? (r.start_time ? formatMs(r.start_time) : null);
-        const endMs = r.end_time_ms ?? (r.end_time ? formatMs(r.end_time) : null);
+        // Parse test times consistently as UTC
+        let startMs = null;
+        let endMs = null;
+        
+        // Try to get times from pre-calculated fields first
+        if (r.start_time_utc) {
+          startMs = new Date(r.start_time_utc).getTime();
+        } else if (r.start_time_ms) {
+          startMs = r.start_time_ms;
+        } else if (r.start_time) {
+          // If we only have the local time string, parse it as Cairo time (UTC+3)
+          startMs = new Date(r.start_time + '+03:00').getTime();
+        }
+        
+        if (r.end_time_utc) {
+          endMs = new Date(r.end_time_utc).getTime();
+        } else if (r.end_time_ms) {
+          endMs = r.end_time_ms;
+        } else if (r.end_time) {
+          endMs = new Date(r.end_time + '+03:00').getTime();
+        }
+        
         if (startMs === null || endMs === null) return false;
-        // Only show tests if current Cairo time >= start time and <= end time
-        return cairoNowMs >= startMs && cairoNowMs <= endMs;
+        
+        // Compare all times in UTC milliseconds
+        return nowUtcMs >= startMs && nowUtcMs <= endMs;
       } catch (e) {
         console.error('Error filtering test time:', e);
         return false; 
       }
     });
 
-    return filtered.map((r: any) => ({
-      ...r,
-      start_time: formatLocal(r.start_time),
-      end_time: formatLocal(r.end_time),
-      start_time_utc: formatUtc(r.start_time + '+03:00'), // Append Cairo offset
-      end_time_utc: formatUtc(r.end_time + '+03:00'),   // Append Cairo offset 
-      start_time_ms: formatMs(r.start_time + '+03:00'),  // Use Cairo time
-      end_time_ms: formatMs(r.end_time + '+03:00'),     // Use Cairo time
-      is_submitted: r.is_submitted
-    }));
+    return filtered.map((r: any) => {
+      // Calculate times consistently
+      const startTime = r.start_time_utc ? new Date(r.start_time_utc) : new Date(r.start_time + '+03:00');
+      const endTime = r.end_time_utc ? new Date(r.end_time_utc) : new Date(r.end_time + '+03:00');
+      
+      return {
+        ...r,
+        start_time: formatLocal(startTime),
+        end_time: formatLocal(endTime),
+        start_time_utc: startTime.toISOString(),
+        end_time_utc: endTime.toISOString(),
+        start_time_ms: startTime.getTime(),
+        end_time_ms: endTime.getTime(),
+        is_submitted: r.is_submitted
+      };
+    });
   }
 
   async getStudentTestHistory(studentId: number): Promise<any[]> {
