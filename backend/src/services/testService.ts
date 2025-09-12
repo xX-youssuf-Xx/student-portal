@@ -27,13 +27,17 @@ const formatLocal = (d: Date | string | null) => {
 // admins save naive local timestamps, we explicitly append the server's
 // timezone offset (e.g. "+02:00") before parsing when no timezone is present.
 const hasTimezoneSuffix = (s: string) => /[zZ]$|[+\-]\d{2}:?\d{2}$/.test(s);
-const serverOffsetSuffix = () => {
-  const offMin = -new Date().getTimezoneOffset(); // e.g. 120 for +02:00
-  const sign = offMin >= 0 ? '+' : '-';
-  const abs = Math.abs(offMin);
-  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
-  const mm = String(abs % 60).padStart(2, '0');
-  return `${sign}${hh}:${mm}`;
+// By default we parse timezone-naive timestamps as Cairo time (UTC+03:00).
+// This can be overridden by setting PARSE_TIMEZONE environment variable
+// to a value like "+02:00" or "+03:00".
+const parseTimezoneSuffix = () => {
+  const env = process.env.PARSE_TIMEZONE;
+  if (env && typeof env === 'string' && /^[+-]\d{2}:?\d{2}$/.test(env)) {
+    // normalize to +HH:MM
+    const cleaned = env.includes(':') ? env : `${env.slice(0,3)}:${env.slice(3)}`;
+    return cleaned;
+  }
+  return '+03:00'; // Cairo
 };
 
 const formatUtc = (d: Date | string | null) => {
@@ -44,8 +48,8 @@ const formatUtc = (d: Date | string | null) => {
     if (hasTimezoneSuffix(s)) {
       return new Date(s).toISOString();
     }
-    // Append server offset and parse
-    return new Date(s + serverOffsetSuffix()).toISOString();
+    // Append configured parse timezone (default: Cairo +03:00) and parse
+    return new Date(s + parseTimezoneSuffix()).toISOString();
   } catch (e) {
     // Fallback: let Date try parsing whatever it can
     return new Date(s).toISOString();
@@ -60,7 +64,7 @@ const formatMs = (d: Date | string | null) => {
     if (hasTimezoneSuffix(s)) {
       return new Date(s).getTime();
     }
-    return new Date(s + serverOffsetSuffix()).getTime();
+    return new Date(s + parseTimezoneSuffix()).getTime();
   } catch (e) {
     return new Date(s).getTime();
   }
