@@ -559,26 +559,44 @@ class TestService {
     }
 
     const student = studentResult.rows[0];
-    // Use local timestamp string without timezone to match DB TIMESTAMP values
-    const now = nowLocalString();
-
+    // Fetch tests matching grade/group, then filter by current time in UTC using ms to avoid timezone issues
     const query = `
       SELECT t.*, 
              CASE WHEN ta.id IS NOT NULL THEN true ELSE false END as is_submitted
       FROM tests t
       LEFT JOIN test_answers ta ON t.id = ta.test_id AND ta.student_id = $1
-      WHERE t.start_time <= $2 
-        AND t.end_time >= $2
-        AND (t.grade = $3)
-        AND (t.student_group IS NULL OR t.student_group = $4)
+      WHERE (t.grade = $2)
+        AND (t.student_group IS NULL OR t.student_group = $3)
       ORDER BY t.start_time ASC
     `;
-    
-    const result = await database.query(query, [studentId, now, student.grade, student.student_group]);
-    return (result.rows || []).map(r => ({
+
+    const result = await database.query(query, [studentId, student.grade, student.student_group]);
+    const rows = result.rows || [];
+
+    const nowMs = Date.now();
+    const filtered = rows.filter((r: any) => {
+      try {
+        // compute start/end ms using DB value reliably
+        const startUtc = formatUtc(r.start_time);
+        const endUtc = formatUtc(r.end_time);
+        const startMs = startUtc ? Date.parse(startUtc) : null;
+        const endMs = endUtc ? Date.parse(endUtc) : null;
+        if (startMs === null || endMs === null) return false;
+        return startMs <= nowMs && endMs >= nowMs;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    return filtered.map((r: any) => ({
       ...r,
       start_time: formatLocal(r.start_time),
-      end_time: formatLocal(r.end_time)
+      end_time: formatLocal(r.end_time),
+      start_time_utc: formatUtc(r.start_time),
+      end_time_utc: formatUtc(r.end_time),
+      start_time_ms: formatMs(r.start_time),
+      end_time_ms: formatMs(r.end_time),
+      is_submitted: r.is_submitted
     }));
   }
 
