@@ -73,7 +73,7 @@ const formatMs = (d: Date | string | null) => {
 // Helper: return current Cairo local timestamp string (UTC+03:00)
 const nowLocalString = () => {
   const d = new Date();
-  const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours
+  const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours 
   const cairoDate = new Date(d.getTime() + (d.getTimezoneOffset() * 60 * 1000) + cairoOffsetMs);
   const yyyy = cairoDate.getFullYear();
   const mm = pad(cairoDate.getMonth() + 1);
@@ -81,7 +81,7 @@ const nowLocalString = () => {
   const hh = pad(cairoDate.getHours());
   const mi = pad(cairoDate.getMinutes());
   const ss = pad(cairoDate.getSeconds());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`;
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+03:00`; // Added explicit timezone
 };
 
 interface CreateTestData {
@@ -613,21 +613,19 @@ class TestService {
     const rows = result.rows || [];
 
     // Get current time in Cairo timezone (+03:00)
-    const now = new Date();
-    const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours in milliseconds
-    const nowCairoMs = now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + cairoOffsetMs;
+    const utcNow = new Date();
+    const cairoNowMs = utcNow.getTime() + (utcNow.getTimezoneOffset() * 60 * 1000) + (3 * 60 * 60 * 1000);
 
     const filtered = rows.filter((r: any) => {
       try {
-        // Format dates ensuring Cairo timezone (+03:00)
-        const startUtc = r.start_time ? formatUtc(r.start_time + '+03:00') : null;
-        const endUtc = r.end_time ? formatUtc(r.end_time + '+03:00') : null;
-        const startMs = startUtc ? Date.parse(startUtc) : null;
-        const endMs = endUtc ? Date.parse(endUtc) : null;
+        // Format dates with explicit Cairo timezone 
+        const startMs = r.start_time ? new Date(r.start_time + '+03:00').getTime() : null;
+        const endMs = r.end_time ? new Date(r.end_time + '+03:00').getTime() : null;
         if (startMs === null || endMs === null) return false;
-        return startMs <= nowCairoMs && endMs >= nowCairoMs;
+        return startMs <= cairoNowMs && endMs >= cairoNowMs;
       } catch (e) {
-        return false;
+        console.error('Error filtering test time:', e);
+        return false; 
       }
     });
 
