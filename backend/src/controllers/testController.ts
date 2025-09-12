@@ -512,9 +512,9 @@ class TestController {
 
       const tests = await testService.getAvailableTestsForStudent(req.user.id);
       
-      // Create a Cairo date (UTC+3) by properly accounting for timezone offsets
+      // Create a Cairo date (UTC+3)
       const utcNow = new Date();
-      const cairoNow = new Date(utcNow.getTime() + (utcNow.getTimezoneOffset() * 60 * 1000) + (3 * 60 * 60 * 1000));
+      const cairoNow = new Date(utcNow.getTime() + (3 * 60 * 60 * 1000)); // Add 3 hours for Cairo time
       
       // Format time info for Cairo timezone  
       const timezoneStr = 'GMT+3';

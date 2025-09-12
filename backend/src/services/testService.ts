@@ -73,8 +73,8 @@ const formatMs = (d: Date | string | null) => {
 // Helper: return current Cairo local timestamp string (UTC+03:00)
 const nowLocalString = () => {
   const d = new Date();
-  const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours 
-  const cairoDate = new Date(d.getTime() + (d.getTimezoneOffset() * 60 * 1000) + cairoOffsetMs);
+  const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours for Cairo
+  const cairoDate = new Date(d.getTime() + cairoOffsetMs);
   const yyyy = cairoDate.getFullYear();
   const mm = pad(cairoDate.getMonth() + 1);
   const dd = pad(cairoDate.getDate());
@@ -619,8 +619,8 @@ class TestService {
     const filtered = rows.filter((r: any) => {
       try {
         // Format dates with explicit Cairo timezone 
-        const startMs = r.start_time ? new Date(r.start_time + '+03:00').getTime() : null;
-        const endMs = r.end_time ? new Date(r.end_time + '+03:00').getTime() : null;
+        const startMs = r.start_time ? formatMs(r.start_time) : null;
+        const endMs = r.end_time ? formatMs(r.end_time) : null;
         if (startMs === null || endMs === null) return false;
         return startMs <= cairoNowMs && endMs >= cairoNowMs;
       } catch (e) {
