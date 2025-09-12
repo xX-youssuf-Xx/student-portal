@@ -12,16 +12,16 @@ jobs:
       - name: Notify
         run: echo "Starting remote deploy to ${{ secrets.SSH_HOST }}"
 
-      - name: Remote deploy via SSH
+      - name: Remote deploy via SSH (password only)
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          # Provide either SSH_PRIVATE_KEY or SSH_PASSWORD (set as repository secret). Both may be present; action will use the auth method available.
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Using password-based auth only as requested. Set SSH_PASSWORD in repo secrets.
           password: ${{ secrets.SSH_PASSWORD }}
-          port: ${{ secrets.SSH_PORT }}
-          timeout: 120000
+          port: ${{ secrets.SSH_PORT || '22' }}
+          # timeout expects a duration string like '120s' or '2m'
+          timeout: 120s
           script: |
             set -euo pipefail
             echo "connected to $(hostname)"
