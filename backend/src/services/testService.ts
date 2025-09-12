@@ -37,7 +37,7 @@ const parseTimezoneSuffix = () => {
     const cleaned = env.includes(':') ? env : `${env.slice(0,3)}:${env.slice(3)}`;
     return cleaned;
   }
-  return '+03:00'; // Cairo
+  return '+02:00'; // Cairo (UTC+2)
 };
 
 const formatUtc = (d: Date | string | null) => {
@@ -73,7 +73,7 @@ const formatMs = (d: Date | string | null) => {
 // Helper: return current Cairo local timestamp string (UTC+03:00)
 const nowLocalString = () => {
   const d = new Date();
-  const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours for Cairo
+  const cairoOffsetMs = 2 * 60 * 60 * 1000; // +2 hours for Cairo
   const cairoDate = new Date(d.getTime() + cairoOffsetMs);
   const yyyy = cairoDate.getFullYear();
   const mm = pad(cairoDate.getMonth() + 1);
@@ -81,7 +81,7 @@ const nowLocalString = () => {
   const hh = pad(cairoDate.getHours());
   const mi = pad(cairoDate.getMinutes());
   const ss = pad(cairoDate.getSeconds());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+03:00`; // Added explicit timezone
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+02:00`; // Added explicit timezone
 };
 
 interface CreateTestData {
@@ -612,9 +612,9 @@ class TestService {
     const result = await database.query(query, [studentId, student.grade, student.student_group]);
     const rows = result.rows || [];
 
-    // Get current time in Cairo timezone (+03:00)
+    // Get current time in Cairo timezone (+02:00)
     const utcNow = new Date();
-    const cairoNowMs = utcNow.getTime() + (utcNow.getTimezoneOffset() * 60 * 1000) + (3 * 60 * 60 * 1000);
+    const cairoNowMs = utcNow.getTime() + (2 * 60 * 60 * 1000); // Add 2 hours for Cairo time
 
     const filtered = rows.filter((r: any) => {
       try {
