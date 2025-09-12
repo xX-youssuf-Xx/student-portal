@@ -375,14 +375,13 @@ const TestModal = ({ test, onClose, onSave }) => {
       console.log('Submitting form with student_group:', formData.student_group);
       const formDataToSend = new FormData();
       
-      // Helper: preserve local wall time by sending a naive datetime string (no timezone/Z)
-      // 'YYYY-MM-DDTHH:mm' -> 'YYYY-MM-DDTHH:mm:00'
-      const toUtcIso = (val) => {
+      // Helper: Append Cairo timezone (+03:00) to dates for correct server handling
+      const toCairoIso = (val) => {
         if (!val) return val;
         // Ensure we only have YYYY-MM-DDTHH:mm
         const base = String(val).slice(0, 16);
-        // Return without timezone designator so DB stores the wall time as-is
-        return `${base}:00`;
+        // Return with Cairo timezone for unambiguous timezone handling
+        return `${base}:00+03:00`;
       };
 
       // Add basic fields
@@ -402,7 +401,7 @@ const TestModal = ({ test, onClose, onSave }) => {
         }
         if (value !== '' && value !== null) {
           if (key === 'start_time' || key === 'end_time') {
-            formDataToSend.append(key, toUtcIso(value));
+            formDataToSend.append(key, toCairoIso(value));
           } else {
             formDataToSend.append(key, value);
           }

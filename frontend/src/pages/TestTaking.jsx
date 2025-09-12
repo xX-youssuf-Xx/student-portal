@@ -210,54 +210,47 @@ const TestTaking = () => {
         }
       }
       
-      // Helper: robustly parse server timestamps (handles seconds, naive datetimes, ISO)
-      // Prefer Cairo-specific ms/utc fields when present in payload
-      const parseServerTimestamp = (ts, alt) => {
-        const chosen = ts ?? alt;
+      // Helper: robustly parse server timestamps, always treating naive times as Cairo time
+      const parseServerTimestamp = (ts) => {
         if (!ts) return null;
-        // If numeric (seconds or ms)
+        // If numeric (seconds or ms), treat as UTC milliseconds
         if (typeof ts === 'number' || /^[0-9]+$/.test(String(ts))) {
           const n = Number(ts);
           // If looks like seconds (<= 10 digits), multiply
           if (String(n).length <= 10) return n * 1000;
           return n;
         }
-        // If string already has timezone or Z, let Date parse it
-        if (/[zZ]|[+-][0-9]{2}:?[0-9]{2}/.test(chosen)) {
-          const p = Date.parse(chosen);
+        
+        // Clean up the timestamp string
+        const s = String(ts);
+        
+        // If it already has a timezone suffix, just parse it normally
+        if (/[zZ]|[+-][0-9]{2}:?[0-9]{2}$/.test(s)) {
+          const p = Date.parse(s);
           return Number.isNaN(p) ? null : p;
         }
-        // If string looks like 'YYYY-MM-DDTHH:MM' or 'YYYY-MM-DDTHH:MM:SS' without timezone, treat as local
-        // Examples seen in production: '2025-09-11T15:19'
-    const naiveLocalIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(chosen);
-        if (naiveLocalIso) {
-          // Construct a Date from components in local timezone to avoid shifting by UTC incorrectly
-          try {
-      const dt = new Date(chosen);
-      const p = dt.getTime();
-            return Number.isNaN(p) ? null : p;
-          } catch (e) {
-            return null;
-          }
+        
+        // For any naive time format without timezone, append Cairo timezone (+03:00)
+        // This includes formats like:
+        // - 'YYYY-MM-DDTHH:mm'
+        // - 'YYYY-MM-DDTHH:mm:ss'
+        // - 'YYYY-MM-DD HH:mm:ss'
+        const isoWithCairo = s.replace(' ', 'T') + '+03:00';
+        const parsedCairo = Date.parse(isoWithCairo);
+        if (!Number.isNaN(parsedCairo)) {
+          return parsedCairo;
         }
-        // If string looks like 'YYYY-MM-DD HH:MM:SS' (naive), convert to local by replacing space with T
-        const naiveSpaceDatetime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(chosen);
-        if (naiveSpaceDatetime) {
-          const iso = chosen.replace(' ', 'T');
-          const p = Date.parse(iso);
-          return Number.isNaN(p) ? null : p;
-        }
-        // Fallback to Date.parse
-  const parsed = Date.parse(chosen);
-        return Number.isNaN(parsed) ? null : parsed;
+        
+        // Last resort: plain parse
+        return Date.parse(s);
       };
 
       // Set timer if duration is specified. Use submission.created_at to resume timer if available.
       if (testData.duration_minutes) {
         if (submissionMeta && submissionMeta.created_at) {
           // Prefer explicit ms or UTC fields from backend if present
-          const bestTimestamp = submissionMeta.created_at_cairo_ms ?? submissionMeta.created_at_ms ?? submissionMeta.created_at_utc ?? submissionMeta.created_at;
-          const startedAtMs = parseServerTimestamp(bestTimestamp, submissionMeta.created_at_cairo ?? submissionMeta.created_at_utc ?? submissionMeta.created_at);
+          const bestTimestamp = submissionMeta.created_at_ms ?? submissionMeta.created_at_utc ?? submissionMeta.created_at;
+          const startedAtMs = parseServerTimestamp(bestTimestamp);
           const nowMs = Date.now();
           const elapsed = startedAtMs ? Math.floor((nowMs - startedAtMs) / 1000) : null;
           const remaining = elapsed !== null ? testData.duration_minutes * 60 - elapsed : null;

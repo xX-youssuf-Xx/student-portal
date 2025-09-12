@@ -21,24 +21,6 @@ const formatLocal = (d: Date | string | null) => {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 };
 
-// Format a date as Cairo local wall-time (YYYY-MM-DDTHH:mm) regardless of server timezone.
-const formatCairoLocal = (d: Date | string | null) => {
-  if (!d) return null;
-  // Use formatUtc to get an unambiguous UTC instant for the input
-  const utcIso = formatUtc(d);
-  if (!utcIso) return null;
-  const date = new Date(utcIso);
-  // Cairo = UTC+3
-  const cairoMs = date.getTime() + 3 * 60 * 60 * 1000;
-  const cd = new Date(cairoMs);
-  const yyyy = cd.getUTCFullYear();
-  const mm = pad(cd.getUTCMonth() + 1);
-  const dd = pad(cd.getUTCDate());
-  const hh = pad(cd.getUTCHours());
-  const mi = pad(cd.getUTCMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-};
-
 // Helper: format Date as UTC ISO and epoch ms
 // If the incoming value is a timezone-naive string like "2025-09-12T03:35"
 // many JS engines interpret it as local time. To remove ambiguity when
@@ -88,15 +70,17 @@ const formatMs = (d: Date | string | null) => {
   }
 };
 
-// Helper: return current local timestamp string compatible with DB comparisons
+// Helper: return current Cairo local timestamp string (UTC+03:00)
 const nowLocalString = () => {
   const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = pad(d.getMonth() + 1);
-  const dd = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mi = pad(d.getMinutes());
-  const ss = pad(d.getSeconds());
+  const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours
+  const cairoDate = new Date(d.getTime() + (d.getTimezoneOffset() * 60 * 1000) + cairoOffsetMs);
+  const yyyy = cairoDate.getFullYear();
+  const mm = pad(cairoDate.getMonth() + 1);
+  const dd = pad(cairoDate.getDate());
+  const hh = pad(cairoDate.getHours());
+  const mi = pad(cairoDate.getMinutes());
+  const ss = pad(cairoDate.getSeconds());
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`;
 };
 
@@ -351,21 +335,16 @@ class TestService {
     const result = await database.query(query, values);
     // Format timestamps as local wall-time strings before returning
     const row = result.rows[0];
-      if (row) {
-        // keep local wall-time for backward compatibility
-        row.start_time = formatLocal(row.start_time);
-        row.end_time = formatLocal(row.end_time);
-        // also include unambiguous UTC ISO and epoch ms
-        row.start_time_utc = formatUtc(row.start_time);
-        row.end_time_utc = formatUtc(row.end_time);
-        row.start_time_ms = formatMs(row.start_time);
-        row.end_time_ms = formatMs(row.end_time);
-        // Cairo-specific fields
-        row.start_time_cairo = formatCairoLocal(row.start_time);
-        row.end_time_cairo = formatCairoLocal(row.end_time);
-        row.start_time_cairo_ms = row.start_time_cairo ? Date.parse((row.start_time_utc as string)) + 3 * 60 * 60 * 1000 : null;
-        row.end_time_cairo_ms = row.end_time_cairo ? Date.parse((row.end_time_utc as string)) + 3 * 60 * 60 * 1000 : null;
-      }
+    if (row) {
+  // keep local wall-time for backward compatibility
+  row.start_time = formatLocal(row.start_time);
+  row.end_time = formatLocal(row.end_time);
+  // also include unambiguous UTC ISO and epoch ms
+  row.start_time_utc = formatUtc(row.start_time);
+  row.end_time_utc = formatUtc(row.end_time);
+  row.start_time_ms = formatMs(row.start_time);
+  row.end_time_ms = formatMs(row.end_time);
+    }
     return row;
   }
 
@@ -390,11 +369,6 @@ class TestService {
       end_time_utc: formatUtc(r.end_time),
       start_time_ms: formatMs(r.start_time),
       end_time_ms: formatMs(r.end_time)
-  ,
-  start_time_cairo: formatCairoLocal(r.start_time),
-  end_time_cairo: formatCairoLocal(r.end_time),
-  start_time_cairo_ms: (formatUtc(r.start_time) ? Date.parse(formatUtc(r.start_time) as string) + 3 * 60 * 60 * 1000 : null),
-  end_time_cairo_ms: (formatUtc(r.end_time) ? Date.parse(formatUtc(r.end_time) as string) + 3 * 60 * 60 * 1000 : null)
     }));
   }
 
@@ -425,10 +399,6 @@ class TestService {
   row.end_time_utc = formatUtc(row.end_time);
   row.start_time_ms = formatMs(row.start_time);
   row.end_time_ms = formatMs(row.end_time);
-  row.start_time_cairo = formatCairoLocal(row.start_time);
-  row.end_time_cairo = formatCairoLocal(row.end_time);
-  row.start_time_cairo_ms = (row.start_time_utc ? Date.parse(row.start_time_utc as string) + 3 * 60 * 60 * 1000 : null);
-  row.end_time_cairo_ms = (row.end_time_utc ? Date.parse(row.end_time_utc as string) + 3 * 60 * 60 * 1000 : null);
       }
       return {
         ...row,
@@ -628,7 +598,7 @@ class TestService {
     }
 
     const student = studentResult.rows[0];
-    // Fetch tests matching grade/group, then filter by current time in UTC using ms to avoid timezone issues
+    // Fetch tests matching grade/group, then filter by current Cairo time to match server time zone
     const query = `
       SELECT t.*, 
              CASE WHEN ta.id IS NOT NULL THEN true ELSE false END as is_submitted
@@ -642,16 +612,20 @@ class TestService {
     const result = await database.query(query, [studentId, student.grade, student.student_group]);
     const rows = result.rows || [];
 
-    const nowMs = Date.now();
+    // Get current time in Cairo timezone (+03:00)
+    const now = new Date();
+    const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours in milliseconds
+    const nowCairoMs = now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + cairoOffsetMs;
+
     const filtered = rows.filter((r: any) => {
       try {
-        // compute start/end ms using DB value reliably
-        const startUtc = formatUtc(r.start_time);
-        const endUtc = formatUtc(r.end_time);
+        // Format dates ensuring Cairo timezone (+03:00)
+        const startUtc = r.start_time ? formatUtc(r.start_time + '+03:00') : null;
+        const endUtc = r.end_time ? formatUtc(r.end_time + '+03:00') : null;
         const startMs = startUtc ? Date.parse(startUtc) : null;
         const endMs = endUtc ? Date.parse(endUtc) : null;
         if (startMs === null || endMs === null) return false;
-        return startMs <= nowMs && endMs >= nowMs;
+        return startMs <= nowCairoMs && endMs >= nowCairoMs;
       } catch (e) {
         return false;
       }
@@ -661,16 +635,11 @@ class TestService {
       ...r,
       start_time: formatLocal(r.start_time),
       end_time: formatLocal(r.end_time),
-      start_time_utc: formatUtc(r.start_time),
-      end_time_utc: formatUtc(r.end_time),
-      start_time_ms: formatMs(r.start_time),
-      end_time_ms: formatMs(r.end_time),
+      start_time_utc: formatUtc(r.start_time + '+03:00'), // Append Cairo offset
+      end_time_utc: formatUtc(r.end_time + '+03:00'),   // Append Cairo offset 
+      start_time_ms: formatMs(r.start_time + '+03:00'),  // Use Cairo time
+      end_time_ms: formatMs(r.end_time + '+03:00'),     // Use Cairo time
       is_submitted: r.is_submitted
-  ,
-  start_time_cairo: formatCairoLocal(r.start_time),
-  end_time_cairo: formatCairoLocal(r.end_time),
-  start_time_cairo_ms: (formatUtc(r.start_time) ? Date.parse(formatUtc(r.start_time) as string) + 3 * 60 * 60 * 1000 : null),
-  end_time_cairo_ms: (formatUtc(r.end_time) ? Date.parse(formatUtc(r.end_time) as string) + 3 * 60 * 60 * 1000 : null)
     }));
   }
 
@@ -815,10 +784,6 @@ class TestService {
   end_time_utc: formatUtc((testData as any).end_time),
   start_time_ms: formatMs((testData as any).start_time),
   end_time_ms: formatMs((testData as any).end_time),
-  start_time_cairo: formatCairoLocal((testData as any).start_time),
-  end_time_cairo: formatCairoLocal((testData as any).end_time),
-  start_time_cairo_ms: (formatUtc((testData as any).start_time) ? Date.parse(formatUtc((testData as any).start_time) as string) + 3 * 60 * 60 * 1000 : null),
-  end_time_cairo_ms: (formatUtc((testData as any).end_time) ? Date.parse(formatUtc((testData as any).end_time) as string) + 3 * 60 * 60 * 1000 : null),
   submission: submission ? this.normalizeSubmission(submission) : null
     };
   }

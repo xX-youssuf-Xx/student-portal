@@ -511,21 +511,28 @@ class TestController {
       }
 
       const tests = await testService.getAvailableTestsForStudent(req.user.id);
-      // Provide additional debug information to help diagnose timezone/availability issues
-      const now = new Date();
+      
+      // Create a Cairo date by adding 3 hours to UTC (Cairo is UTC+3)
+      const utcNow = new Date();
+      const cairoNow = new Date(utcNow.getTime());
+      cairoNow.setHours(cairoNow.getHours() + 3);
+      
+      // Format time info for Cairo timezone
+      const timezoneStr = 'GMT+3';
       const allStartTimes = (tests || []).map(t => ({
         id: (t as any).id,
         title: (t as any).title,
         start_time: (t as any).start_time,
-        start_time_utc: (t as any).start_time_utc,
+        start_time_cairo: (t as any).start_time_utc ? new Date((t as any).start_time_utc).toLocaleString('en-US', { timeZone: 'Africa/Cairo' }) : null,
         start_time_ms: (t as any).start_time_ms
       }));
 
       res.json({
         now: {
-          local: now.toString(),
-          utc: now.toISOString(),
-          ms: now.getTime()
+          cairo: cairoNow.toLocaleString('en-US', { timeZone: 'Africa/Cairo' }),
+          utc: utcNow.toISOString(),
+          ms: utcNow.getTime(),
+          timezone: timezoneStr
         },
         available_count: (tests || []).length,
         all_start_times: allStartTimes,
