@@ -211,7 +211,9 @@ const TestTaking = () => {
       }
       
       // Helper: robustly parse server timestamps (handles seconds, naive datetimes, ISO)
-      const parseServerTimestamp = (ts) => {
+      // Prefer Cairo-specific ms/utc fields when present in payload
+      const parseServerTimestamp = (ts, alt) => {
+        const chosen = ts ?? alt;
         if (!ts) return null;
         // If numeric (seconds or ms)
         if (typeof ts === 'number' || /^[0-9]+$/.test(String(ts))) {
@@ -221,32 +223,32 @@ const TestTaking = () => {
           return n;
         }
         // If string already has timezone or Z, let Date parse it
-        if (/[zZ]|[+-][0-9]{2}:?[0-9]{2}/.test(ts)) {
-          const p = Date.parse(ts);
+        if (/[zZ]|[+-][0-9]{2}:?[0-9]{2}/.test(chosen)) {
+          const p = Date.parse(chosen);
           return Number.isNaN(p) ? null : p;
         }
         // If string looks like 'YYYY-MM-DDTHH:MM' or 'YYYY-MM-DDTHH:MM:SS' without timezone, treat as local
         // Examples seen in production: '2025-09-11T15:19'
-        const naiveLocalIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(ts);
+    const naiveLocalIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(chosen);
         if (naiveLocalIso) {
           // Construct a Date from components in local timezone to avoid shifting by UTC incorrectly
           try {
-            const dt = new Date(ts);
-            const p = dt.getTime();
+      const dt = new Date(chosen);
+      const p = dt.getTime();
             return Number.isNaN(p) ? null : p;
           } catch (e) {
             return null;
           }
         }
         // If string looks like 'YYYY-MM-DD HH:MM:SS' (naive), convert to local by replacing space with T
-        const naiveSpaceDatetime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts);
+        const naiveSpaceDatetime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(chosen);
         if (naiveSpaceDatetime) {
-          const iso = ts.replace(' ', 'T');
+          const iso = chosen.replace(' ', 'T');
           const p = Date.parse(iso);
           return Number.isNaN(p) ? null : p;
         }
         // Fallback to Date.parse
-        const parsed = Date.parse(ts);
+  const parsed = Date.parse(chosen);
         return Number.isNaN(parsed) ? null : parsed;
       };
 
@@ -254,8 +256,8 @@ const TestTaking = () => {
       if (testData.duration_minutes) {
         if (submissionMeta && submissionMeta.created_at) {
           // Prefer explicit ms or UTC fields from backend if present
-          const bestTimestamp = submissionMeta.created_at_ms ?? submissionMeta.created_at_utc ?? submissionMeta.created_at;
-          const startedAtMs = parseServerTimestamp(bestTimestamp);
+          const bestTimestamp = submissionMeta.created_at_cairo_ms ?? submissionMeta.created_at_ms ?? submissionMeta.created_at_utc ?? submissionMeta.created_at;
+          const startedAtMs = parseServerTimestamp(bestTimestamp, submissionMeta.created_at_cairo ?? submissionMeta.created_at_utc ?? submissionMeta.created_at);
           const nowMs = Date.now();
           const elapsed = startedAtMs ? Math.floor((nowMs - startedAtMs) / 1000) : null;
           const remaining = elapsed !== null ? testData.duration_minutes * 60 - elapsed : null;

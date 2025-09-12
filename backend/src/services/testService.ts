@@ -21,6 +21,24 @@ const formatLocal = (d: Date | string | null) => {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 };
 
+// Format a date as Cairo local wall-time (YYYY-MM-DDTHH:mm) regardless of server timezone.
+const formatCairoLocal = (d: Date | string | null) => {
+  if (!d) return null;
+  // Use formatUtc to get an unambiguous UTC instant for the input
+  const utcIso = formatUtc(d);
+  if (!utcIso) return null;
+  const date = new Date(utcIso);
+  // Cairo = UTC+3
+  const cairoMs = date.getTime() + 3 * 60 * 60 * 1000;
+  const cd = new Date(cairoMs);
+  const yyyy = cd.getUTCFullYear();
+  const mm = pad(cd.getUTCMonth() + 1);
+  const dd = pad(cd.getUTCDate());
+  const hh = pad(cd.getUTCHours());
+  const mi = pad(cd.getUTCMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+};
+
 // Helper: format Date as UTC ISO and epoch ms
 // If the incoming value is a timezone-naive string like "2025-09-12T03:35"
 // many JS engines interpret it as local time. To remove ambiguity when
@@ -333,16 +351,21 @@ class TestService {
     const result = await database.query(query, values);
     // Format timestamps as local wall-time strings before returning
     const row = result.rows[0];
-    if (row) {
-  // keep local wall-time for backward compatibility
-  row.start_time = formatLocal(row.start_time);
-  row.end_time = formatLocal(row.end_time);
-  // also include unambiguous UTC ISO and epoch ms
-  row.start_time_utc = formatUtc(row.start_time);
-  row.end_time_utc = formatUtc(row.end_time);
-  row.start_time_ms = formatMs(row.start_time);
-  row.end_time_ms = formatMs(row.end_time);
-    }
+      if (row) {
+        // keep local wall-time for backward compatibility
+        row.start_time = formatLocal(row.start_time);
+        row.end_time = formatLocal(row.end_time);
+        // also include unambiguous UTC ISO and epoch ms
+        row.start_time_utc = formatUtc(row.start_time);
+        row.end_time_utc = formatUtc(row.end_time);
+        row.start_time_ms = formatMs(row.start_time);
+        row.end_time_ms = formatMs(row.end_time);
+        // Cairo-specific fields
+        row.start_time_cairo = formatCairoLocal(row.start_time);
+        row.end_time_cairo = formatCairoLocal(row.end_time);
+        row.start_time_cairo_ms = row.start_time_cairo ? Date.parse((row.start_time_utc as string)) + 3 * 60 * 60 * 1000 : null;
+        row.end_time_cairo_ms = row.end_time_cairo ? Date.parse((row.end_time_utc as string)) + 3 * 60 * 60 * 1000 : null;
+      }
     return row;
   }
 
@@ -367,6 +390,11 @@ class TestService {
       end_time_utc: formatUtc(r.end_time),
       start_time_ms: formatMs(r.start_time),
       end_time_ms: formatMs(r.end_time)
+  ,
+  start_time_cairo: formatCairoLocal(r.start_time),
+  end_time_cairo: formatCairoLocal(r.end_time),
+  start_time_cairo_ms: (formatUtc(r.start_time) ? Date.parse(formatUtc(r.start_time) as string) + 3 * 60 * 60 * 1000 : null),
+  end_time_cairo_ms: (formatUtc(r.end_time) ? Date.parse(formatUtc(r.end_time) as string) + 3 * 60 * 60 * 1000 : null)
     }));
   }
 
@@ -397,6 +425,10 @@ class TestService {
   row.end_time_utc = formatUtc(row.end_time);
   row.start_time_ms = formatMs(row.start_time);
   row.end_time_ms = formatMs(row.end_time);
+  row.start_time_cairo = formatCairoLocal(row.start_time);
+  row.end_time_cairo = formatCairoLocal(row.end_time);
+  row.start_time_cairo_ms = (row.start_time_utc ? Date.parse(row.start_time_utc as string) + 3 * 60 * 60 * 1000 : null);
+  row.end_time_cairo_ms = (row.end_time_utc ? Date.parse(row.end_time_utc as string) + 3 * 60 * 60 * 1000 : null);
       }
       return {
         ...row,
@@ -634,6 +666,11 @@ class TestService {
       start_time_ms: formatMs(r.start_time),
       end_time_ms: formatMs(r.end_time),
       is_submitted: r.is_submitted
+  ,
+  start_time_cairo: formatCairoLocal(r.start_time),
+  end_time_cairo: formatCairoLocal(r.end_time),
+  start_time_cairo_ms: (formatUtc(r.start_time) ? Date.parse(formatUtc(r.start_time) as string) + 3 * 60 * 60 * 1000 : null),
+  end_time_cairo_ms: (formatUtc(r.end_time) ? Date.parse(formatUtc(r.end_time) as string) + 3 * 60 * 60 * 1000 : null)
     }));
   }
 
@@ -778,6 +815,10 @@ class TestService {
   end_time_utc: formatUtc((testData as any).end_time),
   start_time_ms: formatMs((testData as any).start_time),
   end_time_ms: formatMs((testData as any).end_time),
+  start_time_cairo: formatCairoLocal((testData as any).start_time),
+  end_time_cairo: formatCairoLocal((testData as any).end_time),
+  start_time_cairo_ms: (formatUtc((testData as any).start_time) ? Date.parse(formatUtc((testData as any).start_time) as string) + 3 * 60 * 60 * 1000 : null),
+  end_time_cairo_ms: (formatUtc((testData as any).end_time) ? Date.parse(formatUtc((testData as any).end_time) as string) + 3 * 60 * 60 * 1000 : null),
   submission: submission ? this.normalizeSubmission(submission) : null
     };
   }

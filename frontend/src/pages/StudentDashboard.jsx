@@ -25,7 +25,11 @@ const StudentDashboard = () => {
       setAvailableTests(availableResponse.data.tests || []);
       // sort available tests by start_time descending (newest first)
       const available = (availableResponse.data.tests || []).slice();
-      available.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+      available.sort((a, b) => {
+        const aMs = (a.start_time_cairo_ms ?? a.start_time_ms ?? (a.start_time_utc ? new Date(a.start_time_utc).getTime() : new Date(a.start_time).getTime()));
+        const bMs = (b.start_time_cairo_ms ?? b.start_time_ms ?? (b.start_time_utc ? new Date(b.start_time_utc).getTime() : new Date(b.start_time).getTime()));
+        return bMs - aMs;
+      });
       setAvailableTests(available);
 
       // sort test history by submitted_at descending (newest first)
@@ -61,14 +65,14 @@ const StudentDashboard = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('ar-EG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatDate = (dateString, options = {}) => {
+    // Prefer Intl with Africa/Cairo timezone for consistent Cairo display
+    try {
+      const opts = Object.assign({ year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' }, options);
+      return new Date(dateString).toLocaleString('ar-EG', opts);
+    } catch (e) {
+      return new Date(dateString).toLocaleString();
+    }
   };
 
   const getTestTypeLabel = (type) => {
@@ -148,8 +152,8 @@ const StudentDashboard = () => {
                       <span className="test-type">{getTestTypeLabel(test.test_type)}</span>
                     </div>
                     <div className="test-details">
-                      <p><strong>وقت البداية:</strong> {formatDate(test.start_time)}</p>
-                      <p><strong>وقت النهاية:</strong> {formatDate(test.end_time)}</p>
+                      <p><strong>وقت البداية:</strong> {formatDate(test.start_time_cairo ?? test.start_time_utc ?? test.start_time)}</p>
+                      <p><strong>وقت النهاية:</strong> {formatDate(test.end_time_cairo ?? test.end_time_utc ?? test.end_time)}</p>
                       {test.duration_minutes && (
                         <p><strong>المدة:</strong> {test.duration_minutes} دقيقة</p>
                       )}
