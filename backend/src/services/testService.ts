@@ -618,11 +618,12 @@ class TestService {
 
     const filtered = rows.filter((r: any) => {
       try {
-        // Format dates with explicit Cairo timezone 
-        const startMs = r.start_time ? formatMs(r.start_time) : null;
-        const endMs = r.end_time ? formatMs(r.end_time) : null;
+        // Use start_time_ms and end_time_ms for comparison
+        const startMs = r.start_time_ms ?? (r.start_time ? formatMs(r.start_time) : null);
+        const endMs = r.end_time_ms ?? (r.end_time ? formatMs(r.end_time) : null);
         if (startMs === null || endMs === null) return false;
-        return startMs <= cairoNowMs && endMs >= cairoNowMs;
+        // Only show tests if current Cairo time >= start time and <= end time
+        return cairoNowMs >= startMs && cairoNowMs <= endMs;
       } catch (e) {
         console.error('Error filtering test time:', e);
         return false; 
