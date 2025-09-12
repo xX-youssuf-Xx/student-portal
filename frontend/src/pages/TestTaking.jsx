@@ -93,21 +93,8 @@ const TestTaking = () => {
   // No temporary visible grace timer; prevent auto-submit via timerReady gating only
 
   useEffect(() => {
-    // Prevent navigation away from the test page
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = '';
-      return '';
-    };
-
     // Prevent context menu (right-click)
     const handleContextMenu = (e) => {
-      e.preventDefault();
-      return false;
-    };
-
-    // Prevent keyboard shortcuts
-    const handleKeyDown = (e) => {
       // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U, PrintScreen, etc.
       if (
         e.key === 'F12' ||
@@ -118,6 +105,23 @@ const TestTaking = () => {
         (e.ctrlKey && e.key === 'S') ||
         (e.ctrlKey && e.key === 'P') ||
         (e.metaKey && e.shiftKey && e.key === '4') // Cmd+Shift+4 (Mac screenshot)
+      ) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    // Prevent keyboard shortcuts
+    const handleKeyDown = (e) => {
+      if (
+        e.key === 'F12' ||
+        e.key === 'PrintScreen' ||
+        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+        (e.ctrlKey && e.key === 'U') ||
+        (e.ctrlKey && e.key === 'S') ||
+        (e.ctrlKey && e.key === 'P') ||
+        (e.metaKey && e.shiftKey && e.key === '4')
       ) {
         e.preventDefault();
         return false;
@@ -140,21 +144,38 @@ const TestTaking = () => {
         }
       }
     };
-
-    // Add event listeners
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Add event listeners (note: we intentionally do NOT show a beforeunload prompt on refresh)
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Cleanup
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
+
+  // Keep a ref of previous timeLeft to detect transition from >0 to 0
+  const prevTimeLeftRef = useRef(timeLeft);
+
+  // When timer naturally transitions from >0 to 0, auto-submit immediately
+  useEffect(() => {
+    if (timerReady && prevTimeLeftRef.current > 0 && timeLeft === 0) {
+      console.debug('[TestTaking] timer reached 0 via countdown — auto-submitting');
+      handleAutoSubmit();
+    }
+    prevTimeLeftRef.current = timeLeft;
+  }, [timeLeft, timerReady]);
+
+  // If server-set timeLeft was 0 and after grace period allowImmediateAutoSubmit flips true, submit
+  useEffect(() => {
+    if (allowImmediateAutoSubmit && timerReady && timeLeft === 0) {
+      console.debug('[TestTaking] allowImmediateAutoSubmit enabled and timeLeft is 0 — auto-submitting');
+      handleAutoSubmit();
+    }
+  }, [allowImmediateAutoSubmit, timerReady, timeLeft]);
 
   // HELPER FUNCTIONS (these can be anywhere but are typically after hooks)
   const fetchTest = async () => {

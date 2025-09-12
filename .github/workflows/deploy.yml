@@ -1,0 +1,53 @@
+name: Deploy to server
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify
+        run: echo "Starting remote deploy to ${{ secrets.SSH_HOST }}"
+
+      - name: Remote deploy via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          # Provide either SSH_PRIVATE_KEY or SSH_PASSWORD (set as repository secret). Both may be present; action will use the auth method available.
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          timeout: 120000
+          script: |
+            set -euo pipefail
+            echo "connected to $(hostname)"
+            # change to your app directory
+            cd /var/www/student-portal
+            echo "pulling latest from origin/main"
+            git fetch origin main
+            git pull origin main
+
+            echo "installing backend dependencies (bun)"
+            if [ -d backend ]; then
+              cd backend
+              bun install || true
+              cd ..
+            fi
+
+            echo "installing frontend dependencies and building (bun)"
+            if [ -d frontend ]; then
+              cd frontend
+              bun install || true
+              bun run build || true
+              cd ..
+            fi
+
+            echo "reloading nginx and restarting pm2 app id 2"
+            sudo systemctl reload nginx || true
+            pm2 restart 2 || true
+
+            echo "deploy complete"
