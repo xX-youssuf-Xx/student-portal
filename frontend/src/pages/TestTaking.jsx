@@ -185,6 +185,7 @@ const TestTaking = () => {
       const startResponse = await axios.get(`/tests/${testId}/start`);
       const testData = startResponse.data.test;
       const submissionMeta = startResponse.data.test?.submission || null;
+      const serverNowMs = startResponse.data.test?.server_time_ms; // Get server time
       console.debug('[TestTaking] startResponse.data', startResponse.data);
       
       // For MCQ tests, get questions separately
@@ -251,7 +252,7 @@ const TestTaking = () => {
           // Prefer explicit ms or UTC fields from backend if present
           const bestTimestamp = submissionMeta.created_at_ms ?? submissionMeta.created_at_utc ?? submissionMeta.created_at;
           const startedAtMs = parseServerTimestamp(bestTimestamp);
-          const nowMs = Date.now();
+          const nowMs = serverNowMs || Date.now();
           const elapsed = startedAtMs ? Math.floor((nowMs - startedAtMs) / 1000) : null;
           const remaining = elapsed !== null ? testData.duration_minutes * 60 - elapsed : null;
           console.debug('[TestTaking] computed timer', { duration_minutes: testData.duration_minutes, startedAt: submissionMeta.created_at, startedAt_ms_field: submissionMeta.created_at_ms, startedAt_utc_field: submissionMeta.created_at_utc, startedAtMs, nowMs, elapsed, remaining });

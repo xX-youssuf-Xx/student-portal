@@ -808,7 +808,8 @@ class TestService {
   end_time_utc: formatUtc((testData as any).end_time),
   start_time_ms: formatMs((testData as any).start_time),
   end_time_ms: formatMs((testData as any).end_time),
-  submission: submission ? this.normalizeSubmission(submission) : null
+  submission: submission ? this.normalizeSubmission(submission) : null,
+  server_time_ms: new Date().getTime()
     };
   }
 
