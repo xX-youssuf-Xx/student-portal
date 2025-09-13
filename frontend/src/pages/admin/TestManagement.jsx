@@ -792,6 +792,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const [answersCount, setAnswersCount] = useState(50);
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageUrl, setImageUrl] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     setLocalSubs(submissions || []);
@@ -1052,24 +1053,54 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
-        {test.test_type === 'PHYSICAL_SHEET' && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
-                تصحيح جماعي للبابل
-              </button>
-              <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
-                إضافة طلاب للاختبار
-              </button>
+        <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {test.test_type === 'PHYSICAL_SHEET' && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
+                  تصحيح جماعي للبابل
+                </button>
+                <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
+                  إضافة طلاب للاختبار
+                </button>
+              </div>
+            )}
+            <div style={{ width: '300px' }}>
+              <input
+                type="text"
+                placeholder="ابحث باسم الطالب..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                  fontSize: '14px',
+                  direction: 'rtl'
+                }}
+              />
             </div>
           </div>
-        )}
+          <div style={{ color: '#666', fontSize: '14px', textAlign: 'right' }}>
+            العدد الإجمالي: {localSubs.length} | 
+            العدد بعد البحث: {localSubs.filter(sub => 
+              searchTerm === '' || 
+              (sub.student_name && sub.student_name.includes(searchTerm))
+            ).length}
+          </div>
+        </div>
 
         <div className="submissions-list">
           {localSubs.length === 0 ? (
             <p>لا توجد مشاركات</p>
           ) : (
-            localSubs.map(submission => (
+            localSubs
+              .filter(submission => 
+                searchTerm === '' || 
+                (submission.student_name && submission.student_name.includes(searchTerm))
+              )
+              .map(submission => (
               <div key={submission.id} className="submission-item">
                 <div className="student-info">
                   <h4>{submission.student_name}</h4>
@@ -1561,6 +1592,14 @@ const ExportModal = ({ tests, onClose }) => {
                 <div style={{ marginInlineStart: 8 }}>{t.title} — {t.grade}{t.student_group ? ` — ${t.student_group}` : ''}</div>
               </div>
             ))}
+            {localSubs.filter(submission => 
+              searchTerm !== '' && 
+              (submission.student_name && submission.student_name.includes(searchTerm))
+            ).length === 0 && localSubs.length > 0 && (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                لا توجد نتائج تطابق البحث
+              </div>
+            )}
           </div>
         </div>
         <div className="form-actions" style={{ padding: 12 }}>
