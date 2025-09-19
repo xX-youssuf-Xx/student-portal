@@ -14,4 +14,7 @@ router.get('/dashboard', requireStudent, studentController.getDashboard);
 // Student profile (students only)
 router.get('/profile', requireStudent, studentController.getProfile);
 
+// Results graph: student self
+router.get('/results', requireStudent, studentController.getStudentResults);
+
 export default router; 

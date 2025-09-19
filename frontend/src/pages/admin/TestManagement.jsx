@@ -307,6 +307,8 @@ const TestModal = ({ test, onClose, onSave }) => {
     end_time: test?.end_time ? isoToDatetimeLocalPreserve(test.end_time) : '',
     duration_minutes: test?.duration_minutes || '',
     view_type: test?.view_type || 'IMMEDIATE',
+    show_grade_outside: typeof test?.show_grade_outside === 'boolean' ? test.show_grade_outside : (test?.view_type === 'IMMEDIATE'),
+    test_group: (typeof test?.test_group === 'number' ? String(test.test_group) : ''),
     questions: test?.correct_answers?.questions || [],
     bubbleAnswers: test?.correct_answers?.answers || {}
   });
@@ -399,6 +401,12 @@ const TestModal = ({ test, onClose, onSave }) => {
           }
           return;
         }
+        if (key === 'test_group') {
+          if (String(value).trim() !== '') {
+            formDataToSend.append('test_group', String(value));
+          }
+          return;
+        }
         if (value !== '' && value !== null) {
           if (key === 'start_time' || key === 'end_time') {
             formDataToSend.append(key, toCairoIso(value));
@@ -411,7 +419,16 @@ const TestModal = ({ test, onClose, onSave }) => {
       // Add correct answers based on test type
       let correctAnswers = {};
       if (formData.test_type === 'MCQ') {
-        correctAnswers = { questions: formData.questions };
+        // Persist media index; media (preview URL) is for client preview only
+        const questionsOut = (formData.questions || []).map((q, idx) => ({
+          id: q.id,
+          text: q.text,
+          type: q.type,
+          options: q.options,
+          correct: q.correct,
+          media_index: typeof q.media_index === 'number' ? q.media_index : idx
+        }));
+        correctAnswers = { questions: questionsOut };
       } else if (formData.test_type === 'BUBBLE_SHEET' || formData.test_type === 'PHYSICAL_SHEET') {
         correctAnswers = { answers: formData.bubbleAnswers };
       }
@@ -587,6 +604,38 @@ const TestModal = ({ test, onClose, onSave }) => {
                 <option value="TEACHER_CONTROLLED">يتحكم فيه المعلم</option>
               </select>
             </div>
+
+        <div className="form-group">
+          <label>إظهار الدرجة من الخارج</label>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <label>
+              <input
+                type="radio"
+                name="show_grade_outside"
+                checked={!!formData.show_grade_outside}
+                onChange={() => setFormData(prev => ({ ...prev, show_grade_outside: true }))}
+              /> نعم
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="show_grade_outside"
+                checked={!formData.show_grade_outside}
+                onChange={() => setFormData(prev => ({ ...prev, show_grade_outside: false }))}
+              /> لا
+            </label>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>مجموعة الاختبار (للترتيب الموحد)</label>
+          <input
+            type="number"
+            value={formData.test_group}
+            onChange={(e) => setFormData(prev => ({ ...prev, test_group: e.target.value }))}
+            placeholder="مثلاً: 1 أو 2"
+          />
+        </div>
           </div>
 
           {/* Image Upload Section */}
@@ -692,6 +741,26 @@ const TestModal = ({ test, onClose, onSave }) => {
 
                   {question.type === 'MCQ' && (
                     <>
+                      <div className="form-group">
+                        <label>صورة السؤال (اختياري)</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files && e.target.files[0];
+                            if (!file) return;
+                            const objectUrl = URL.createObjectURL(file);
+                            // Save preview URL in media and index in question object
+                            updateQuestion(index, 'media', objectUrl);
+                            updateQuestion(index, 'media_index', index);
+                          }}
+                        />
+                        {question.media && (
+                          <div className="question-media" style={{ marginTop: 8 }}>
+                            <img src={question.media} alt="معاينة" style={{ maxWidth: '200px', borderRadius: 6 }} />
+                          </div>
+                        )}
+                      </div>
                       <div className="options-grid">
                         {question.options.map((option, optIndex) => (
                           <div key={optIndex} className="form-group">
@@ -1009,40 +1078,27 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
     );
   };
 
-  // Compute correct count and total questions for a submission using testDetail
+  // Compute correct/total derived from percentage to avoid mismatch
   const computeCorrectTotal = (submission) => {
     if (!testDetail || !testDetail.correct_answers) return null;
     try {
       const ttype = testDetail.test_type;
       const ca = testDetail.correct_answers;
-
+      let total = 0;
       if (ttype === 'MCQ') {
         const questions = ca.questions || [];
-        const studentAnsArr = submission?.answers && (submission.answers.answers || submission.answers) ? (submission.answers.answers || submission.answers) : [];
-        let correct = 0;
-        for (const q of questions) {
-          const sa = (studentAnsArr || []).find(a => a.id === q.id);
-          if (sa && sa.answer === q.correct) correct++;
-        }
-        return { correct, total: questions.length };
-      }
-
-      if (ttype === 'BUBBLE_SHEET' || ttype === 'PHYSICAL_SHEET') {
+        total = questions.length;
+      } else {
         const correctMap = ca.answers || ca;
-        const studentMap = submission?.answers && (submission.answers.answers || submission.answers) ? (submission.answers.answers || submission.answers) : {};
-        const keys = Object.keys(correctMap || {});
-        let correct = 0;
-        for (const k of keys) {
-          const expected = (correctMap[k] || '').toString();
-          const given = (studentMap && (studentMap[k] || '')).toString();
-          if (given && expected && given === expected) correct++;
-        }
-        return { correct, total: keys.length };
+        total = Object.keys(correctMap || {}).length;
       }
+      const pct = Number(submission?.score || 0);
+      const correct = Math.round((pct / 100) * (total || 0));
+      return { correct, total };
     } catch (e) {
       console.error('Error computing correct/total:', e);
+      return null;
     }
-    return null;
   };
 
   return (

@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import './Dashboard.css';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -9,6 +13,8 @@ const StudentDashboard = () => {
   const [testHistory, setTestHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('available');
+  const [showGraph, setShowGraph] = useState(false);
+  const [graphData, setGraphData] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -17,9 +23,10 @@ const StudentDashboard = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [availableResponse, historyResponse] = await Promise.all([
+      const [availableResponse, historyResponse, resultsResponse] = await Promise.all([
         axios.get('/available-tests'),
-        axios.get('/test-history')
+        axios.get('/test-history'),
+        axios.get('/student/results')
       ]);
       
       setAvailableTests(availableResponse.data.tests || []);
@@ -32,6 +39,7 @@ const StudentDashboard = () => {
       const history = (historyResponse.data.history || []).slice();
       history.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
       setTestHistory(history);
+      setGraphData(Array.isArray(resultsResponse.data?.results) ? resultsResponse.data.results : []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -99,6 +107,43 @@ const StudentDashboard = () => {
     }
   };
 
+  const ResultsLineChart = ({ data }) => {
+    const labels = (data || []).map(r => r.submitted_at || '');
+    const chartData = {
+      labels,
+      datasets: [
+        {
+          label: 'النسبة %',
+          data: (data || []).map(r => r.visible_score ?? r.score ?? 0),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        }
+      ]
+    };
+    const opts = {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.parsed.y}%`,
+            title: (items) => {
+              const idx = items?.[0]?.dataIndex ?? 0;
+              const item = data[idx];
+              const title = (item?.title || '').slice(0, 30);
+              return `${title}`;
+            }
+          }
+        }
+      },
+      scales: { y: { min: 0, max: 100, ticks: { stepSize: 10 } } }
+    };
+    return <Line data={chartData} options={opts} />;
+  };
+
   if (loading) {
     return <div className="loading">جاري التحميل...</div>;
   }
@@ -116,7 +161,7 @@ const StudentDashboard = () => {
 
       <div className="dashboard-content">
         {/* Test Tabs */}
-        <div className="test-tabs">
+        <div className="test-tabs" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button 
             className={`tab-button ${activeTab === 'available' ? 'active' : ''}`}
             onClick={() => setActiveTab('available')}
@@ -128,6 +173,12 @@ const StudentDashboard = () => {
             onClick={() => setActiveTab('history')}
           >
             تاريخ الاختبارات ({testHistory.length})
+          </button>
+          <button 
+            className={`tab-button ${showGraph ? 'active' : ''}`}
+            onClick={() => setShowGraph(s => !s)}
+          >
+            عرض الرسم البياني
           </button>
         </div>
 
@@ -196,6 +247,14 @@ const StudentDashboard = () => {
                       {test.visible_score !== null ? (
                         <div className="score-display">
                           <p><strong>الدرجة:</strong> {test.visible_score}%</p>
+                          {typeof test.visible_score === 'number' && (
+                            <p>
+                              <strong>الأسئلة الصحيحة:</strong> {(() => { try {
+                                const total = test.test_type === 'MCQ' ? ((test.correct_answers?.questions || []).length) : (Object.keys((test.correct_answers?.answers) || test.correct_answers || {}).length);
+                                return Math.round((test.visible_score / 100) * (total || 0));
+                              } catch { return 0; } })()}/{(() => { try { return test.test_type === 'MCQ' ? ((test.correct_answers?.questions || []).length) : (Object.keys((test.correct_answers?.answers) || test.correct_answers || {}).length); } catch { return 0; } })()}
+                            </p>
+                          )}
                           {test.teacher_comment && (
                             <p><strong>تعليق المعلم:</strong> {test.teacher_comment}</p>
                           )}
@@ -218,6 +277,12 @@ const StudentDashboard = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {showGraph && (
+          <div style={{ background: '#fff', borderRadius: 8, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', marginTop: 16 }}>
+            <ResultsLineChart data={graphData} />
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import './StudentCard.css';
 
-const StudentCard = ({ student, onEdit, onDelete }) => {
+const StudentCard = ({ student, onEdit, onDelete, extraActions }) => {
   const gradeLabels = {
     '3MIDDLE': 'الصف الثالث الإعدادي',
     '1HIGH': 'الصف الأول الثانوي',
@@ -21,6 +21,7 @@ const StudentCard = ({ student, onEdit, onDelete }) => {
         <div className="student-card-actions">
           <button onClick={() => onEdit(student)} className="edit-btn">تعديل</button>
           <button onClick={() => onDelete(student.id)} className="delete-btn">حذف</button>
+        {extraActions}
         </div>
       </div>
       <div className="student-card-body">

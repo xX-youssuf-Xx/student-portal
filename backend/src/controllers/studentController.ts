@@ -57,6 +57,28 @@ class StudentController {
     }
   }
 
+  // Admin/student: get student's results time series for graph
+  async getStudentResults(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const targetIdRaw = (req.params as any)?.id;
+      const targetId = targetIdRaw ? parseInt(targetIdRaw as any, 10) : (req.user?.id ?? 0);
+      if (!targetId || isNaN(targetId)) {
+        res.status(400).json({ message: 'Invalid student ID' });
+        return;
+      }
+      // Students can only view their own results; admins can view any
+      if (req.user?.type === 'student' && targetId !== req.user.id) {
+        res.status(403).json({ message: 'Access denied' });
+        return;
+      }
+      const results = await (await import('../services/testService')).default.getStudentResults(targetId);
+      res.json({ results });
+    } catch (error) {
+      console.error('Error getting student results:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
   async getStudentById(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;

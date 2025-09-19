@@ -1,8 +1,13 @@
 import { Router } from 'express';
 import studentController from '../../controllers/studentController';
 import { validateStudentId } from '../../middleware/validation';
+import { authenticateToken, requireAdmin } from '../../middleware/auth';
 
 const router = Router();
+
+// All admin student routes require auth
+router.use(authenticateToken);
+router.use(requireAdmin);
 
 // GET /api/admin/students - Get all students
 router.get('/', studentController.getAllStudents);
@@ -18,5 +23,8 @@ router.put('/:id', validateStudentId, studentController.updateStudent);
 
 // DELETE /api/admin/students/:id - Delete a student
 router.delete('/:id', validateStudentId, studentController.deleteStudent);
+
+// GET /api/admin/students/:id/results - student's results timeseries for graph
+router.get('/:id/results', validateStudentId, studentController.getStudentResults);
 
 export default router;

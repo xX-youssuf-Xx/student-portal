@@ -735,47 +735,8 @@ class TestController {
         return;
       }
 
-      // Get all submissions for this test, ordered by score descending
-      const submissions = await testService.getTestSubmissions(testId);
-      
-      // Find the current student's submission
-      const currentStudentSubmission = submissions.find(
-        (s: any) => s.student_id === req.user?.id && s.test_id === testId
-      );
-
-      if (!currentStudentSubmission) {
-        res.status(404).json({ message: 'Submission not found for this test' });
-        return;
-      }
-
-      // Calculate rank based on score (higher scores first, same score = same rank)
-      let rank = 1;
-      let prevScore = null;
-      let sameScoreCount = 0;
-      
-      for (const [index, submission] of submissions.entries()) {
-        if (index > 0 && submission.score !== prevScore) {
-          rank += sameScoreCount;
-          sameScoreCount = 0;
-        }
-        
-        if (submission.student_id === req.user?.id) {
-          break;
-        }
-        
-        if (submission.score === prevScore) {
-          sameScoreCount++;
-        } else {
-          sameScoreCount = 1;
-          prevScore = submission.score;
-        }
-      }
-
-      res.json({
-        rank,
-        totalStudents: submissions.length,
-        score: currentStudentSubmission.score
-      });
+      const data = await testService.getStudentRank(testId, req.user.id);
+      res.json({ rank: data.rank, totalStudents: data.total, score: data.score });
     } catch (error) {
       console.error('Error getting student rank:', error);
       res.status(500).json({ message: 'Internal server error' });

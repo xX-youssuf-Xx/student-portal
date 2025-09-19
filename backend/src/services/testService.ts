@@ -96,6 +96,8 @@ interface CreateTestData {
   correct_answers?: any;
   view_type: 'IMMEDIATE' | 'TEACHER_CONTROLLED';
   view_permission?: boolean;
+  show_grade_outside?: boolean;
+  test_group?: number | null;
 }
 
 class TestService {
@@ -314,8 +316,8 @@ class TestService {
     const query = `
       INSERT INTO tests (
         title, grade, student_group, test_type, start_time, end_time, 
-        duration_minutes, correct_answers, view_type, view_permission
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        duration_minutes, correct_answers, view_type, view_permission, show_grade_outside, test_group
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `;
     
@@ -329,7 +331,9 @@ class TestService {
       testData.duration_minutes || null,
       testData.correct_answers || null,
       testData.view_type,
-      testData.view_type === 'IMMEDIATE' ? true : (testData.view_permission || false)
+      testData.view_type === 'IMMEDIATE' ? true : (testData.view_permission || false),
+      testData.view_type === 'IMMEDIATE' ? true : (testData.show_grade_outside ?? false),
+      testData.test_group ?? null
     ];
 
     const result = await database.query(query, values);
@@ -492,7 +496,8 @@ class TestService {
     // Only allow updating known columns. Map common client keys to DB column names.
     const allowedFields = new Set([
       'title', 'grade', 'student_group', 'test_type', 'start_time', 'end_time',
-      'duration_minutes', 'pdf_file_path', 'correct_answers', 'view_type', 'view_permission'
+      'duration_minutes', 'pdf_file_path', 'correct_answers', 'view_type', 'view_permission',
+      'show_grade_outside', 'test_group'
     ]);
 
     const keyMap: Record<string, string> = {
@@ -671,7 +676,7 @@ class TestService {
     const query = `
       SELECT t.*, ta.score, ta.graded, ta.teacher_comment, ta.created_at as submitted_at,
              CASE 
-               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true THEN ta.score
+               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true OR t.show_grade_outside = true THEN ta.score
                ELSE NULL
              END as visible_score
       FROM tests t
@@ -890,7 +895,7 @@ class TestService {
       SELECT t.*, ta.score, ta.graded, ta.teacher_comment, ta.answers, ta.created_at as submitted_at,
              ta.manual_grades,
              CASE 
-               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true THEN ta.score
+               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true OR t.show_grade_outside = true THEN ta.score
                ELSE NULL
              END as visible_score,
              CASE 
@@ -939,10 +944,43 @@ class TestService {
          console.error('Failed to parse result JSON fields', e);
        }
 
-       // If score is visible, also include correct answers for comparison
+      // If score is visible, also include correct answers for comparison
       if (testResult.visible_score !== null && testResult._parsed_correct_answers) {
         // Expose a sanitized version for students to compare, do not leak any extra metadata
         testResult.correct_answers_visible = testResult._parsed_correct_answers;
+      }
+      // If score is visible, include derived correct/total
+      if (testResult.visible_score !== null) {
+        try {
+          const testType = testResult.test_type;
+          let ca = testResult.correct_answers_visible; // already parsed sanitized
+          let ans = testResult.visible_answers ?? testResult.answers;
+          if (typeof ans === 'string') { try { ans = JSON.parse(ans); } catch { ans = null; } }
+          if (testType === 'MCQ') {
+            const questions = ca && ca.questions ? ca.questions : [];
+            const total = questions.length;
+            let correct = 0;
+            const stuAnsArr = ans && (ans.answers || ans) ? (ans.answers || ans) : [];
+            for (const q of questions) {
+              const sa = (stuAnsArr || []).find((a: any) => a.id === q.id);
+              if (sa && sa.answer === q.correct) correct++;
+            }
+            testResult.visible_correct = correct;
+            testResult.visible_total = total;
+          } else {
+            const correctMap = ca && (ca.answers || ca);
+            const studentMap = ans && (ans.answers || ans) ? (ans.answers || ans) : {};
+            const keys = Object.keys(correctMap || {});
+            let correct = 0;
+            for (const k of keys) {
+              const expected = (correctMap[k] || '').toString();
+              const given = (studentMap && (studentMap[k] || '')).toString();
+              if (given && expected && given === expected) correct++;
+            }
+            testResult.visible_correct = correct;
+            testResult.visible_total = keys.length;
+          }
+        } catch {}
       }
       // If score is visible, include manual grades map for per-question open grading display
       if (testResult.visible_score !== null && testResult.manual_grades) {
