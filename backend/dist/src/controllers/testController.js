@@ -403,7 +403,27 @@ class TestController {
                 return;
             }
             const tests = await testService.getAvailableTestsForStudent(req.user.id);
-            res.json({ tests });
+            const utcNow = new Date();
+            const cairoNowString = utcNow.toLocaleString('en-US', { timeZone: 'Africa/Cairo' });
+            const timezoneStr = 'GMT+3';
+            const allStartTimes = (tests || []).map(t => ({
+                id: t.id,
+                title: t.title,
+                start_time: t.start_time,
+                start_time_cairo: t.start_time_utc ? new Date(t.start_time_utc).toLocaleString('en-US', { timeZone: 'Africa/Cairo' }) : null,
+                start_time_ms: t.start_time_ms
+            }));
+            res.json({
+                now: {
+                    cairo: cairoNowString,
+                    utc: utcNow.toISOString(),
+                    ms: utcNow.getTime(),
+                    timezone: timezoneStr
+                },
+                available_count: (tests || []).length,
+                all_start_times: allStartTimes,
+                tests
+            });
         }
         catch (error) {
             console.error('Error getting available tests:', error);
@@ -578,36 +598,8 @@ class TestController {
                 res.status(400).json({ message: 'Invalid test ID or user ID' });
                 return;
             }
-            const submissions = await testService.getTestSubmissions(testId);
-            const currentStudentSubmission = submissions.find((s) => s.student_id === req.user?.id && s.test_id === testId);
-            if (!currentStudentSubmission) {
-                res.status(404).json({ message: 'Submission not found for this test' });
-                return;
-            }
-            let rank = 1;
-            let prevScore = null;
-            let sameScoreCount = 0;
-            for (const [index, submission] of submissions.entries()) {
-                if (index > 0 && submission.score !== prevScore) {
-                    rank += sameScoreCount;
-                    sameScoreCount = 0;
-                }
-                if (submission.student_id === req.user?.id) {
-                    break;
-                }
-                if (submission.score === prevScore) {
-                    sameScoreCount++;
-                }
-                else {
-                    sameScoreCount = 1;
-                    prevScore = submission.score;
-                }
-            }
-            res.json({
-                rank,
-                totalStudents: submissions.length,
-                score: currentStudentSubmission.score
-            });
+            const data = await testService.getStudentRank(testId, req.user.id);
+            res.json({ rank: data.rank, totalStudents: data.total, score: data.score });
         }
         catch (error) {
             console.error('Error getting student rank:', error);

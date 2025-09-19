@@ -51,6 +51,26 @@ class StudentController {
             return;
         }
     }
+    async getStudentResults(req, res) {
+        try {
+            const targetIdRaw = req.params?.id;
+            const targetId = targetIdRaw ? parseInt(targetIdRaw, 10) : (req.user?.id ?? 0);
+            if (!targetId || isNaN(targetId)) {
+                res.status(400).json({ message: 'Invalid student ID' });
+                return;
+            }
+            if (req.user?.type === 'student' && targetId !== req.user.id) {
+                res.status(403).json({ message: 'Access denied' });
+                return;
+            }
+            const results = await (await import('../services/testService')).default.getStudentTestHistory(targetId);
+            res.json({ results });
+        }
+        catch (error) {
+            console.error('Error getting student results:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
     async getStudentById(req, res) {
         try {
             const { id } = req.params;

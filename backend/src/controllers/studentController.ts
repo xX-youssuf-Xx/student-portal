@@ -71,7 +71,7 @@ class StudentController {
         res.status(403).json({ message: 'Access denied' });
         return;
       }
-      const results = await (await import('../services/testService')).default.getStudentResults(targetId);
+      const results = await (await import('../services/testService')).default.getStudentTestHistory(targetId);
       res.json({ results });
     } catch (error) {
       console.error('Error getting student results:', error);

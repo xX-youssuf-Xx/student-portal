@@ -54,6 +54,8 @@ export interface Test {
     correct_answers?: any;
     view_type: 'IMMEDIATE' | 'TEACHER_CONTROLLED';
     view_permission: boolean;
+    show_grade_outside?: boolean;
+    test_group?: number | null;
     created_at: Date;
     updated_at: Date;
     submission_count?: number;

@@ -4,6 +4,7 @@ declare class StudentController {
     getDashboard(req: AuthenticatedRequest, res: Response): Promise<void>;
     getProfile(req: AuthenticatedRequest, res: Response): Promise<void>;
     getAllStudents(req: AuthenticatedRequest, res: Response): Promise<void>;
+    getStudentResults(req: AuthenticatedRequest, res: Response): Promise<void>;
     getStudentById(req: AuthenticatedRequest, res: Response): Promise<void>;
     createStudent(req: AuthenticatedRequest, res: Response): Promise<void>;
     updateStudent(req: AuthenticatedRequest, res: Response): Promise<void>;

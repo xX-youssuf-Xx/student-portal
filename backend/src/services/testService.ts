@@ -1695,6 +1695,59 @@ class TestService {
 
     return { header, rows: outRows };
   }
+
+  // Get student's rank for a specific test
+  async getStudentRank(testId: number, studentId: number): Promise<{ rank: number; total: number; score: number | null }> {
+    try {
+      // First, get all submissions for this test to calculate rank
+      const submissions = await database.query(
+        `SELECT student_id, score FROM test_answers 
+         WHERE test_id = $1 AND score IS NOT NULL 
+         ORDER BY score DESC`, 
+        [testId]
+      );
+
+      if (submissions.rows.length === 0) {
+        return { rank: -1, total: 0, score: null };
+      }
+
+      // Find the student's submission
+      const studentSubmission = submissions.rows.find(row => row.student_id === studentId);
+      if (!studentSubmission) {
+        return { rank: -1, total: submissions.rows.length, score: null };
+      }
+
+      // Calculate rank (1-based index of first occurrence of this score)
+      const studentScore = parseFloat(studentSubmission.score);
+      let rank = 1;
+      let prevScore: number | null = null;
+      let currentRank = 1;
+
+      for (const row of submissions.rows) {
+        const score = parseFloat(row.score);
+        if (prevScore !== null && score !== prevScore) {
+          currentRank = rank;
+        }
+        
+        if (row.student_id === studentId) {
+          return {
+            rank: currentRank,
+            total: submissions.rows.length,
+            score: studentScore
+          };
+        }
+        
+        rank++;
+        prevScore = score;
+      }
+
+      // This should not happen if we found the student's submission
+      return { rank: -1, total: submissions.rows.length, score: null };
+    } catch (error) {
+      console.error('Error calculating student rank:', error);
+      return { rank: -1, total: 0, score: null };
+    }
+  }
 }
 
 export default new TestService();

@@ -11,6 +11,8 @@ interface CreateTestData {
     correct_answers?: any;
     view_type: 'IMMEDIATE' | 'TEACHER_CONTROLLED';
     view_permission?: boolean;
+    show_grade_outside?: boolean;
+    test_group?: number | null;
 }
 declare class TestService {
     private normalizeSubmission;
@@ -89,6 +91,11 @@ declare class TestService {
     exportCombinedRankingsRows(testIds: number[]): Promise<{
         header: string[];
         rows: Array<any[]>;
+    }>;
+    getStudentRank(testId: number, studentId: number): Promise<{
+        rank: number;
+        total: number;
+        score: number | null;
     }>;
 }
 declare const _default: TestService;

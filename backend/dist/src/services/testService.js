@@ -16,27 +16,82 @@ const formatLocal = (d) => {
     const mi = pad(date.getMinutes());
     return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 };
+const hasTimezoneSuffix = (s) => /[zZ]$|[+\-]\d{2}:?\d{2}$/.test(s);
+const parseTimezoneSuffix = () => {
+    const env = process.env.PARSE_TIMEZONE;
+    if (env && typeof env === 'string' && /^[+-]\d{2}:?\d{2}$/.test(env)) {
+        const cleaned = env.includes(':') ? env : `${env.slice(0, 3)}:${env.slice(3)}`;
+        return cleaned;
+    }
+    return '+03:00';
+};
+const formatUtc = (d) => {
+    if (!d)
+        return null;
+    if (d instanceof Date)
+        return d.toISOString();
+    const s = String(d);
+    try {
+        if (hasTimezoneSuffix(s)) {
+            return new Date(s).toISOString();
+        }
+        return new Date(s + parseTimezoneSuffix()).toISOString();
+    }
+    catch (e) {
+        return new Date(s).toISOString();
+    }
+};
+const formatMs = (d) => {
+    if (!d)
+        return null;
+    if (d instanceof Date)
+        return d.getTime();
+    const s = String(d);
+    try {
+        if (hasTimezoneSuffix(s)) {
+            return new Date(s).getTime();
+        }
+        return new Date(s + parseTimezoneSuffix()).getTime();
+    }
+    catch (e) {
+        return new Date(s).getTime();
+    }
+};
 const nowLocalString = () => {
     const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = pad(d.getMonth() + 1);
-    const dd = pad(d.getDate());
-    const hh = pad(d.getHours());
-    const mi = pad(d.getMinutes());
-    const ss = pad(d.getSeconds());
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`;
+    const cairoOffsetMs = 3 * 60 * 60 * 1000;
+    const cairoDate = new Date(d.getTime() + cairoOffsetMs);
+    const yyyy = cairoDate.getFullYear();
+    const mm = pad(cairoDate.getMonth() + 1);
+    const dd = pad(cairoDate.getDate());
+    const hh = pad(cairoDate.getHours());
+    const mi = pad(cairoDate.getMinutes());
+    const ss = pad(cairoDate.getSeconds());
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+03:00`;
 };
 class TestService {
     normalizeSubmission(submission) {
         if (!submission)
             return null;
         const s = { ...submission };
-        if (s.created_at)
-            s.created_at = formatLocal(s.created_at);
-        if (s.updated_at)
-            s.updated_at = formatLocal(s.updated_at);
-        if (s.submitted_at)
-            s.submitted_at = formatLocal(s.submitted_at);
+        if (s.created_at) {
+            const _d = s.created_at;
+            s.created_at = formatLocal(_d);
+            s.created_at_utc = formatUtc(_d);
+            s.created_at_ms = formatMs(_d);
+        }
+        if (s.updated_at) {
+            const _d = s.updated_at;
+            s.updated_at = formatLocal(_d);
+            s.updated_at_utc = formatUtc(_d);
+            s.updated_at_ms = formatMs(_d);
+        }
+        if (s.submitted_at) {
+            const _d = s.submitted_at;
+            s.submitted_at = formatLocal(_d);
+            s.submitted_at_utc = formatUtc(_d);
+            s.submitted_at_ms = formatMs(_d);
+        }
         try {
             if (s.answers && typeof s.answers === 'string') {
                 s.answers = JSON.parse(s.answers);
@@ -204,8 +259,8 @@ class TestService {
         const query = `
       INSERT INTO tests (
         title, grade, student_group, test_type, start_time, end_time, 
-        duration_minutes, correct_answers, view_type, view_permission
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        duration_minutes, correct_answers, view_type, view_permission, show_grade_outside, test_group
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `;
         const values = [
@@ -218,13 +273,19 @@ class TestService {
             testData.duration_minutes || null,
             testData.correct_answers || null,
             testData.view_type,
-            testData.view_type === 'IMMEDIATE' ? true : (testData.view_permission || false)
+            testData.view_type === 'IMMEDIATE' ? true : (testData.view_permission || false),
+            testData.view_type === 'IMMEDIATE' ? true : (testData.show_grade_outside ?? false),
+            testData.test_group ?? null
         ];
         const result = await database.query(query, values);
         const row = result.rows[0];
         if (row) {
             row.start_time = formatLocal(row.start_time);
             row.end_time = formatLocal(row.end_time);
+            row.start_time_utc = formatUtc(row.start_time);
+            row.end_time_utc = formatUtc(row.end_time);
+            row.start_time_ms = formatMs(row.start_time);
+            row.end_time_ms = formatMs(row.end_time);
         }
         return row;
     }
@@ -242,7 +303,11 @@ class TestService {
         return (result.rows || []).map(r => ({
             ...r,
             start_time: formatLocal(r.start_time),
-            end_time: formatLocal(r.end_time)
+            end_time: formatLocal(r.end_time),
+            start_time_utc: formatUtc(r.start_time),
+            end_time_utc: formatUtc(r.end_time),
+            start_time_ms: formatMs(r.start_time),
+            end_time_ms: formatMs(r.end_time)
         }));
     }
     async getTestById(testId) {
@@ -264,6 +329,10 @@ class TestService {
             if (row) {
                 row.start_time = formatLocal(row.start_time);
                 row.end_time = formatLocal(row.end_time);
+                row.start_time_utc = formatUtc(row.start_time);
+                row.end_time_utc = formatUtc(row.end_time);
+                row.start_time_ms = formatMs(row.start_time);
+                row.end_time_ms = formatMs(row.end_time);
             }
             return {
                 ...row,
@@ -340,7 +409,8 @@ class TestService {
     async updateTest(testId, testData) {
         const allowedFields = new Set([
             'title', 'grade', 'student_group', 'test_type', 'start_time', 'end_time',
-            'duration_minutes', 'pdf_file_path', 'correct_answers', 'view_type', 'view_permission'
+            'duration_minutes', 'pdf_file_path', 'correct_answers', 'view_type', 'view_permission',
+            'show_grade_outside', 'test_group'
         ]);
         const keyMap = {
             pdf: 'pdf_file_path',
@@ -426,30 +496,69 @@ class TestService {
             return [];
         }
         const student = studentResult.rows[0];
-        const now = nowLocalString();
         const query = `
       SELECT t.*, 
              CASE WHEN ta.id IS NOT NULL THEN true ELSE false END as is_submitted
       FROM tests t
       LEFT JOIN test_answers ta ON t.id = ta.test_id AND ta.student_id = $1
-      WHERE t.start_time <= $2 
-        AND t.end_time >= $2
-        AND (t.grade = $3)
-        AND (t.student_group IS NULL OR t.student_group = $4)
+      WHERE (t.grade = $2)
+        AND (t.student_group IS NULL OR t.student_group = $3)
       ORDER BY t.start_time ASC
     `;
-        const result = await database.query(query, [studentId, now, student.grade, student.student_group]);
-        return (result.rows || []).map(r => ({
-            ...r,
-            start_time: formatLocal(r.start_time),
-            end_time: formatLocal(r.end_time)
-        }));
+        const result = await database.query(query, [studentId, student.grade, student.student_group]);
+        const rows = result.rows || [];
+        const nowUtcMs = Date.now();
+        const filtered = rows.filter((r) => {
+            try {
+                let startMs = null;
+                let endMs = null;
+                if (r.start_time_utc) {
+                    startMs = new Date(r.start_time_utc).getTime();
+                }
+                else if (r.start_time_ms) {
+                    startMs = r.start_time_ms;
+                }
+                else if (r.start_time) {
+                    startMs = new Date(r.start_time + '+03:00').getTime();
+                }
+                if (r.end_time_utc) {
+                    endMs = new Date(r.end_time_utc).getTime();
+                }
+                else if (r.end_time_ms) {
+                    endMs = r.end_time_ms;
+                }
+                else if (r.end_time) {
+                    endMs = new Date(r.end_time + '+03:00').getTime();
+                }
+                if (startMs === null || endMs === null)
+                    return false;
+                return nowUtcMs >= startMs && nowUtcMs <= endMs;
+            }
+            catch (e) {
+                console.error('Error filtering test time:', e);
+                return false;
+            }
+        });
+        return filtered.map((r) => {
+            const startTime = r.start_time_utc ? new Date(r.start_time_utc) : new Date(r.start_time + '+03:00');
+            const endTime = r.end_time_utc ? new Date(r.end_time_utc) : new Date(r.end_time + '+03:00');
+            return {
+                ...r,
+                start_time: formatLocal(startTime),
+                end_time: formatLocal(endTime),
+                start_time_utc: startTime.toISOString(),
+                end_time_utc: endTime.toISOString(),
+                start_time_ms: startTime.getTime(),
+                end_time_ms: endTime.getTime(),
+                is_submitted: r.is_submitted
+            };
+        });
     }
     async getStudentTestHistory(studentId) {
         const query = `
       SELECT t.*, ta.score, ta.graded, ta.teacher_comment, ta.created_at as submitted_at,
              CASE 
-               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true THEN ta.score
+               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true OR t.show_grade_outside = true THEN ta.score
                ELSE NULL
              END as visible_score
       FROM tests t
@@ -514,11 +623,19 @@ class TestService {
             testData.is_submitted = availableTest.is_submitted;
             testData.start_time = formatLocal(testData.start_time);
             testData.end_time = formatLocal(testData.end_time);
+            testData.start_time_utc = formatUtc(testData.start_time);
+            testData.end_time_utc = formatUtc(testData.end_time);
+            testData.start_time_ms = formatMs(testData.start_time);
+            testData.end_time_ms = formatMs(testData.end_time);
             return testData;
         }
         if (fullTest) {
             fullTest.start_time = formatLocal(fullTest.start_time);
             fullTest.end_time = formatLocal(fullTest.end_time);
+            fullTest.start_time_utc = formatUtc(fullTest.start_time);
+            fullTest.end_time_utc = formatUtc(fullTest.end_time);
+            fullTest.start_time_ms = formatMs(fullTest.start_time);
+            fullTest.end_time_ms = formatMs(fullTest.end_time);
         }
         return fullTest;
     }
@@ -547,7 +664,12 @@ class TestService {
         delete testData.correct_answers;
         return {
             ...testData,
-            submission: submission ? this.normalizeSubmission(submission) : null
+            start_time_utc: formatUtc(testData.start_time),
+            end_time_utc: formatUtc(testData.end_time),
+            start_time_ms: formatMs(testData.start_time),
+            end_time_ms: formatMs(testData.end_time),
+            submission: submission ? this.normalizeSubmission(submission) : null,
+            server_time_ms: new Date().getTime()
         };
     }
     async submitTest(testId, studentId, answers, isDraft = false) {
@@ -608,7 +730,7 @@ class TestService {
       SELECT t.*, ta.score, ta.graded, ta.teacher_comment, ta.answers, ta.created_at as submitted_at,
              ta.manual_grades,
              CASE 
-               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true THEN ta.score
+               WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true OR t.show_grade_outside = true THEN ta.score
                ELSE NULL
              END as visible_score,
              CASE 
@@ -656,6 +778,49 @@ class TestService {
             }
             if (testResult.visible_score !== null && testResult._parsed_correct_answers) {
                 testResult.correct_answers_visible = testResult._parsed_correct_answers;
+            }
+            if (testResult.visible_score !== null) {
+                try {
+                    const testType = testResult.test_type;
+                    let ca = testResult.correct_answers_visible;
+                    let ans = testResult.visible_answers ?? testResult.answers;
+                    if (typeof ans === 'string') {
+                        try {
+                            ans = JSON.parse(ans);
+                        }
+                        catch {
+                            ans = null;
+                        }
+                    }
+                    if (testType === 'MCQ') {
+                        const questions = ca && ca.questions ? ca.questions : [];
+                        const total = questions.length;
+                        let correct = 0;
+                        const stuAnsArr = ans && (ans.answers || ans) ? (ans.answers || ans) : [];
+                        for (const q of questions) {
+                            const sa = (stuAnsArr || []).find((a) => a.id === q.id);
+                            if (sa && sa.answer === q.correct)
+                                correct++;
+                        }
+                        testResult.visible_correct = correct;
+                        testResult.visible_total = total;
+                    }
+                    else {
+                        const correctMap = ca && (ca.answers || ca);
+                        const studentMap = ans && (ans.answers || ans) ? (ans.answers || ans) : {};
+                        const keys = Object.keys(correctMap || {});
+                        let correct = 0;
+                        for (const k of keys) {
+                            const expected = (correctMap[k] || '').toString();
+                            const given = (studentMap && (studentMap[k] || '')).toString();
+                            if (given && expected && given === expected)
+                                correct++;
+                        }
+                        testResult.visible_correct = correct;
+                        testResult.visible_total = keys.length;
+                    }
+                }
+                catch { }
             }
             if (testResult.visible_score !== null && testResult.manual_grades) {
                 try {
@@ -1298,6 +1463,44 @@ class TestService {
             ]);
         }
         return { header, rows: outRows };
+    }
+    async getStudentRank(testId, studentId) {
+        try {
+            const submissions = await database.query(`SELECT student_id, score FROM test_answers 
+         WHERE test_id = $1 AND score IS NOT NULL 
+         ORDER BY score DESC`, [testId]);
+            if (submissions.rows.length === 0) {
+                return { rank: -1, total: 0, score: null };
+            }
+            const studentSubmission = submissions.rows.find(row => row.student_id === studentId);
+            if (!studentSubmission) {
+                return { rank: -1, total: submissions.rows.length, score: null };
+            }
+            const studentScore = parseFloat(studentSubmission.score);
+            let rank = 1;
+            let prevScore = null;
+            let currentRank = 1;
+            for (const row of submissions.rows) {
+                const score = parseFloat(row.score);
+                if (prevScore !== null && score !== prevScore) {
+                    currentRank = rank;
+                }
+                if (row.student_id === studentId) {
+                    return {
+                        rank: currentRank,
+                        total: submissions.rows.length,
+                        score: studentScore
+                    };
+                }
+                rank++;
+                prevScore = score;
+            }
+            return { rank: -1, total: submissions.rows.length, score: null };
+        }
+        catch (error) {
+            console.error('Error calculating student rank:', error);
+            return { rank: -1, total: 0, score: null };
+        }
     }
 }
 export default new TestService();
