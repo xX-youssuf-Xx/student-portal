@@ -1,4 +1,10 @@
 /* Dashboard Styles with RTL Support */
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+
+* {
+  font-family: 'Tajawal', sans-serif;
+  box-sizing: border-box;
+}
 .dashboard {
   min-height: 100vh;
   background: #f8fafc;
@@ -291,6 +297,7 @@
   gap: 2rem;
   margin-top: 1rem;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .student-info span {
@@ -562,10 +569,252 @@
   }
 }
 
+/* Test Cards */
+.tests-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.test-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.test-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-color: #3b82f6;
+}
+
+.test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.test-header h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  flex: 1;
+}
+
+.test-type {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  white-space: nowrap;
+}
+
+.test-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  flex: 1;
+}
+
+.test-meta span {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.test-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 1rem;
+}
+
+.view-result-button, .btn-start-test, .btn-completed {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.view-result-button {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.view-result-button:hover {
+  background-color: #2563eb;
+}
+
+.btn-start-test {
+  background-color: #10b981;
+  color: white;
+}
+
+.btn-start-test:hover {
+  background-color: #059669;
+}
+
+.btn-completed {
+  background-color: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.score {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-right: auto;
+}
+
+.score.pass {
+  color: #10b981;
+}
+
+.score.fail {
+  color: #ef4444;
+}
+
+.score-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.correct-answers {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+/* Tabs */
+.test-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tab-button {
+  padding: 0.75rem 1.5rem;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+  background: #f1f5f9;
+  color: #3b82f6;
+}
+
+.tab-button.active {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Graph Section */
+.graph-section {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+  margin-top: 1.5rem;
+}
+
+.graph-container {
+  margin-top: 1rem;
+  height: 100%;
+  min-height: 400px;
+}
+
+/* No Tests Message */
+.no-tests, .no-data {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 12px;
+  margin-top: 1rem;
+}
+
+.no-tests p, .no-data p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .tests-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .test-tabs {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .tab-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 @media (max-width: 480px) {
   .dashboard-header h1 {
-    font-size: 2rem;
+    font-size: 1.8rem;
   }
+  
+  .test-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .test-type {
+    align-self: flex-start;
+  }
+  
+  .test-actions {
+    flex-direction: column;
+  }
+  
+  .view-result-button, .btn-start-test, .btn-completed {
+    width: 100%;
+  }
+  
+  .score-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
   
   .dashboard-header p {
     font-size: 1rem;

@@ -13,7 +13,6 @@ const StudentDashboard = () => {
   const [testHistory, setTestHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('available');
-  const [showGraph, setShowGraph] = useState(false);
   const [graphData, setGraphData] = useState([]);
 
   useEffect(() => {
@@ -108,40 +107,96 @@ const StudentDashboard = () => {
   };
 
   const ResultsLineChart = ({ data }) => {
-    const labels = (data || []).map(r => r.submitted_at || '');
+    // Sort data by date in ascending order for the graph
+    const sortedData = [...(data || [])].sort((a, b) => 
+      new Date(a.submitted_at) - new Date(b.submitted_at)
+    );
+
+    // Format dates to show only the date part
+    const formatDateLabel = (dateString) => {
+      if (!dateString) return '';
+      return new Date(dateString).toLocaleDateString('ar-EG', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    };
+
     const chartData = {
-      labels,
+      labels: sortedData.map(r => formatDateLabel(r.submitted_at)),
       datasets: [
         {
           label: 'النسبة %',
-          data: (data || []).map(r => r.visible_score ?? r.score ?? 0),
+          data: sortedData.map(r => parseFloat(r.visible_score ?? r.score ?? 0)),
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.2)',
           tension: 0.3,
           pointRadius: 4,
           pointHoverRadius: 6,
+          fill: true
         }
       ]
     };
+
+    const getTotalQuestions = (test) => {
+      if (!test.correct_answers) return 0;
+      if (test.test_type === 'MCQ') {
+        return test.correct_answers.questions?.length || 0;
+      } else if (test.test_type === 'BUBBLE_SHEET') {
+        return Object.keys(test.correct_answers.answers || {}).length;
+      }
+      return 0;
+    };
+
+    const getCorrectAnswers = (test) => {
+      if (!test.score || !test.correct_answers) return 0;
+      const totalQuestions = getTotalQuestions(test);
+      if (totalQuestions === 0) return 0;
+      return Math.round((parseFloat(test.score) / 100) * totalQuestions);
+    };
+
     const opts = {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (ctx) => `${ctx.parsed.y}%`,
+            label: (context) => {
+              const data = sortedData[context.dataIndex];
+              const totalQuestions = getTotalQuestions(data);
+              const correctAnswers = getCorrectAnswers(data);
+              return [
+                `النسبة: ${parseFloat(data.visible_score ?? data.score ?? 0).toFixed(2)}%`,
+                `الإجابات الصحيحة: ${correctAnswers}/${totalQuestions}`
+              ];
+            },
             title: (items) => {
               const idx = items?.[0]?.dataIndex ?? 0;
-              const item = data[idx];
-              const title = (item?.title || '').slice(0, 30);
-              return `${title}`;
+              const item = sortedData[idx];
+              return item?.title || '';
             }
           }
         }
       },
-      scales: { y: { min: 0, max: 100, ticks: { stepSize: 10 } } }
+      scales: { 
+        y: { 
+          min: 0, 
+          max: 100, 
+          ticks: { stepSize: 10 },
+          title: { display: true, text: 'النسبة %' }
+        },
+        x: {
+          reverse: false // Make graph go from left to right
+        }
+      }
     };
-    return <Line data={chartData} options={opts} />;
+
+    return (
+      <div style={{ height: '400px', width: '100%' }}>
+        <Line data={chartData} options={opts} />
+      </div>
+    );
   };
 
   if (loading) {
@@ -161,7 +216,7 @@ const StudentDashboard = () => {
 
       <div className="dashboard-content">
         {/* Test Tabs */}
-        <div className="test-tabs" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="test-tabs" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '20px' }}>
           <button 
             className={`tab-button ${activeTab === 'available' ? 'active' : ''}`}
             onClick={() => setActiveTab('available')}
@@ -175,10 +230,10 @@ const StudentDashboard = () => {
             تاريخ الاختبارات ({testHistory.length})
           </button>
           <button 
-            className={`tab-button ${showGraph ? 'active' : ''}`}
-            onClick={() => setShowGraph(s => !s)}
+            className={`tab-button ${activeTab === 'graph' ? 'active' : ''}`}
+            onClick={() => setActiveTab('graph')}
           >
-            عرض الرسم البياني
+            الرسم البياني
           </button>
         </div>
 
@@ -236,53 +291,83 @@ const StudentDashboard = () => {
               </div>
             ) : (
               <div className="tests-grid">
-                {testHistory.map(test => (
-                  <div key={test.id} className="test-card completed">
-                    <div className="test-header">
-                      <h3>{test.title}</h3>
-                      <span className="test-type">{getTestTypeLabel(test.test_type)}</span>
-                    </div>
-                    <div className="test-details">
-                      <p><strong>تاريخ التقديم:</strong> {formatDate(test.submitted_at)}</p>
-                      {test.visible_score !== null ? (
-                        <div className="score-display">
-                          <p><strong>الدرجة:</strong> {test.visible_score}%</p>
-                          {typeof test.visible_score === 'number' && (
-                            <p>
-                              <strong>الأسئلة الصحيحة:</strong> {(() => { try {
-                                const total = test.test_type === 'MCQ' ? ((test.correct_answers?.questions || []).length) : (Object.keys((test.correct_answers?.answers) || test.correct_answers || {}).length);
-                                return Math.round((test.visible_score / 100) * (total || 0));
-                              } catch { return 0; } })()}/{(() => { try { return test.test_type === 'MCQ' ? ((test.correct_answers?.questions || []).length) : (Object.keys((test.correct_answers?.answers) || test.correct_answers || {}).length); } catch { return 0; } })()}
-                            </p>
-                          )}
-                          {test.teacher_comment && (
-                            <p><strong>تعليق المعلم:</strong> {test.teacher_comment}</p>
+                {testHistory.map(test => {
+                  const showDetails = test.view_type === 'IMMEDIATE' || test.view_permission;
+                  const showGradeOnly = test.view_type === 'TEACHER_CONTROLLED' && test.show_grade_outside && !test.view_permission;
+                  
+                  // Calculate correct answers and total questions
+                  const getTotalQuestions = () => {
+                    if (!test.correct_answers) return 0;
+                    if (test.test_type === 'MCQ') {
+                      return test.correct_answers.questions?.length || 0;
+                    } else if (test.test_type === 'BUBBLE_SHEET') {
+                      return Object.keys(test.correct_answers.answers || {}).length;
+                    }
+                    return 0;
+                  };
+
+                  const totalQuestions = getTotalQuestions();
+                  const correctAnswers = test.score ? Math.round((parseFloat(test.score) / 100) * totalQuestions) : 0;
+                  
+                  return (
+                    <div key={test.id} className="test-card">
+                      <div className="test-header">
+                        <h3>{test.title}</h3>
+                        <span className="test-type">{getTestTypeLabel(test.test_type)}</span>
+                      </div>
+                      <div className="test-meta">
+                        <span>التاريخ: {formatDate(test.submitted_at)}</span>
+                        {(test.view_type === 'IMMEDIATE' || test.show_grade_outside || test.view_permission) && test.score && (
+                          <div className="score-info">
+                            <span className={`score ${test.score >= 50 ? 'pass' : 'fail'}`}>
+                              النسبة: {parseFloat(test.score).toFixed(2)}%
+                            </span>
+                            {totalQuestions > 0 && (
+                              <span className="correct-answers">
+                                ({correctAnswers}/{totalQuestions} إجابة صحيحة)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {showDetails || showGradeOnly ? (
+                        <div className="test-actions">
+                          {showDetails && (
+                            <button 
+                              className="view-result-button"
+                              onClick={() => viewTestResult(test.id)}
+                            >
+                              عرض النتيجة
+                            </button>
                           )}
                         </div>
-                      ) : (
-                        <p className="pending-grade">في انتظار النتيجة</p>
-                      )}
+                      ) : null}
                     </div>
-                    <div className="test-actions">
-                      {test.visible_score !== null && (
-                        <button 
-                          className="btn-view-result"
-                          onClick={() => viewTestResult(test.id)}
-                        >
-                          📊 عرض التفاصيل والإجابات
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         )}
 
-        {showGraph && (
-          <div style={{ background: '#fff', borderRadius: 8, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', marginTop: 16 }}>
-            <ResultsLineChart data={graphData} />
+        {/* Graph Section */}
+        {activeTab === 'graph' && (
+          <div className="graph-section">
+            <div className="graph-container" style={{ 
+              backgroundColor: 'white', 
+              padding: '20px', 
+              borderRadius: '8px', 
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
+            }}>
+              <h2>تطور النتائج</h2>
+              {graphData.length > 0 ? (
+                <ResultsLineChart data={graphData} />
+              ) : (
+                <div className="no-data" style={{ textAlign: 'center', padding: '40px' }}>
+                  <p>لا توجد بيانات متاحة للعرض</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
