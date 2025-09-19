@@ -594,82 +594,82 @@ class TestService {
   }
 
   async getAvailableTestsForStudent(studentId: number): Promise<Test[]> {
-    // First get student info
-    const studentQuery = 'SELECT grade, student_group FROM students WHERE id = $1';
-    const studentResult = await database.query(studentQuery, [studentId]);
-    
-    if (studentResult.rows.length === 0) {
+    try {
+      // First get student info
+      const studentQuery = 'SELECT grade, student_group FROM students WHERE id = $1';
+      const studentResult = await database.query(studentQuery, [studentId]);
+      
+      if (studentResult.rows.length === 0) {
+        console.log(`Student ${studentId} not found`);
+        return [];
+      }
+
+      const student = studentResult.rows[0];
+      console.log(`Fetching tests for student ${studentId} (grade: ${student.grade}, group: ${student.student_group})`);
+      
+      // Get current time in Cairo timezone (UTC+3)
+      const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours for Cairo (UTC+3)
+      const nowCairoMs = Date.now() + cairoOffsetMs;
+      const nowCairoDate = new Date(nowCairoMs);
+      
+      // Format current time for SQL query (YYYY-MM-DDTHH:MM:SS+03:00)
+      const nowCairoString = `${nowCairoDate.getUTCFullYear()}-${pad(nowCairoDate.getUTCMonth() + 1)}-${pad(nowCairoDate.getUTCDate())}T${pad(nowCairoDate.getUTCHours())}:${pad(nowCairoDate.getUTCMinutes())}:${pad(nowCairoDate.getUTCSeconds())}+03:00`;
+      
+      // Fetch tests that match student's grade/group and are within the time window
+      const query = `
+        WITH student_submissions AS (
+          SELECT test_id, true as is_submitted, created_at as submitted_at
+          FROM test_answers 
+          WHERE student_id = $1
+        )
+        SELECT 
+          t.*, 
+          COALESCE(ss.is_submitted, false) as is_submitted,
+          ss.submitted_at
+        FROM tests t
+        LEFT JOIN student_submissions ss ON t.id = ss.test_id
+        WHERE t.grade = $2
+          AND (t.student_group IS NULL OR t.student_group = $3)
+          AND t.start_time <= $4
+          AND t.end_time >= $4
+        ORDER BY t.start_time ASC
+      `;
+
+      console.log('Executing query with params:', [studentId, student.grade, student.student_group, nowCairoString]);
+      const result = await database.query(query, [
+        studentId, 
+        student.grade, 
+        student.student_group,
+        nowCairoString
+      ]);
+      
+      const tests = result.rows || [];
+      console.log(`Found ${tests.length} available tests for student ${studentId}`);
+      
+      // Format the test data with consistent time fields
+      return tests.map((test: any) => {
+        const startTime = new Date(test.start_time);
+        const endTime = new Date(test.end_time);
+        
+        // Add timezone offset to ensure correct display in frontend
+        const startTimeWithTZ = new Date(startTime.getTime() + cairoOffsetMs);
+        const endTimeWithTZ = new Date(endTime.getTime() + cairoOffsetMs);
+        
+        return {
+          ...test,
+          start_time: formatLocal(startTimeWithTZ),
+          end_time: formatLocal(endTimeWithTZ),
+          start_time_utc: startTime.toISOString(),
+          end_time_utc: endTime.toISOString(),
+          start_time_ms: startTime.getTime(),
+          end_time_ms: endTime.getTime(),
+          is_submitted: test.is_submitted || false
+        };
+      });
+    } catch (error) {
+      console.error('Error in getAvailableTestsForStudent:', error);
       return [];
     }
-
-    const student = studentResult.rows[0];
-    // Fetch tests matching grade/group, then filter by current Cairo time to match server time zone
-    const query = `
-      SELECT t.*, 
-             CASE WHEN ta.id IS NOT NULL THEN true ELSE false END as is_submitted
-      FROM tests t
-      LEFT JOIN test_answers ta ON t.id = ta.test_id AND ta.student_id = $1
-      WHERE (t.grade = $2)
-        AND (t.student_group IS NULL OR t.student_group = $3)
-      ORDER BY t.start_time ASC
-    `;
-
-    const result = await database.query(query, [studentId, student.grade, student.student_group]);
-    const rows = result.rows || [];
-
-    // Get current time in milliseconds (UTC)
-    const nowUtcMs = Date.now();
-    
-    const filtered = rows.filter((r: any) => {
-      try {
-        // Parse test times consistently as UTC
-        let startMs = null;
-        let endMs = null;
-        
-        // Try to get times from pre-calculated fields first
-        if (r.start_time_utc) {
-          startMs = new Date(r.start_time_utc).getTime();
-        } else if (r.start_time_ms) {
-          startMs = r.start_time_ms;
-        } else if (r.start_time) {
-          // If we only have the local time string, parse it as Cairo time (UTC+3)
-          startMs = new Date(r.start_time + '+03:00').getTime();
-        }
-        
-        if (r.end_time_utc) {
-          endMs = new Date(r.end_time_utc).getTime();
-        } else if (r.end_time_ms) {
-          endMs = r.end_time_ms;
-        } else if (r.end_time) {
-          endMs = new Date(r.end_time + '+03:00').getTime();
-        }
-        
-        if (startMs === null || endMs === null) return false;
-        
-        // Compare all times in UTC milliseconds
-        return nowUtcMs >= startMs && nowUtcMs <= endMs;
-      } catch (e) {
-        console.error('Error filtering test time:', e);
-        return false; 
-      }
-    });
-
-    return filtered.map((r: any) => {
-      // Calculate times consistently
-      const startTime = r.start_time_utc ? new Date(r.start_time_utc) : new Date(r.start_time + '+03:00');
-      const endTime = r.end_time_utc ? new Date(r.end_time_utc) : new Date(r.end_time + '+03:00');
-      
-      return {
-        ...r,
-        start_time: formatLocal(startTime),
-        end_time: formatLocal(endTime),
-        start_time_utc: startTime.toISOString(),
-        end_time_utc: endTime.toISOString(),
-        start_time_ms: startTime.getTime(),
-        end_time_ms: endTime.getTime(),
-        is_submitted: r.is_submitted
-      };
-    });
   }
 
   async getStudentTestHistory(studentId: number): Promise<any[]> {

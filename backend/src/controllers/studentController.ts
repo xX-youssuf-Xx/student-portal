@@ -71,11 +71,17 @@ class StudentController {
         res.status(403).json({ message: 'Access denied' });
         return;
       }
-      const results = await (await import('../services/testService')).default.getStudentTestHistory(targetId);
+      
+      // Use direct import instead of dynamic import
+      const testService = (await import('../services/testService')).default;
+      const results = await testService.getStudentTestHistory(targetId);
       res.json({ results });
     } catch (error) {
       console.error('Error getting student results:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ 
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 
