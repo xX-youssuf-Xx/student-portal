@@ -316,13 +316,25 @@ const DraggableImage = ({ image, index, onRemove, onDragStart, onDragOver, onDro
 
 // Test Creation/Edit Modal Component
 const TestModal = ({ test, onClose, onSave }) => {
-  // Display helper: extract YYYY-MM-DDTHH:mm as-is from ISO string (no timezone shift)
-  const isoToDatetimeLocalPreserve = (iso) => {
-    if (!iso) return '';
-    const m = String(iso).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
-    if (!m) return iso;
-    const [_, y, mo, d, h, mi] = m;
-    return `${y}-${mo}-${d}T${h}:${mi}`;
+  // Display helper: convert ISO or database datetime string to datetime-local input format (YYYY-MM-DDTHH:MM)
+  const isoToDatetimeLocalPreserve = (dateTimeStr) => {
+    if (!dateTimeStr) return '';
+    
+    // Handle both ISO format (2025-09-20T12:00:00.000Z) and database format (2025-09-20 12:00:00)
+    const date = new Date(dateTimeStr);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '';
+    
+    // Format as YYYY-MM-DDTHH:MM
+    const pad = (num) => String(num).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   const [formData, setFormData] = useState({
