@@ -515,6 +515,11 @@ class TestService {
       const mappedKey = (keyMap[key] as string) || key;
       // Ignore unknown fields to prevent SQL errors
       if (!allowedFields.has(mappedKey)) return;
+      
+      // Validate test_type to prevent empty strings
+      if (mappedKey === 'test_type' && (value === '' || value === null)) {
+        return; // Skip updating test_type if it's an empty string or null
+      }
 
       if (mappedKey === 'view_permission' && testData.view_type === 'IMMEDIATE') {
         // For IMMEDIATE tests, always set view_permission to true
