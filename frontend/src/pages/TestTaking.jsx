@@ -51,11 +51,13 @@ const TestTaking = () => {
   // ALL EFFECTS MUST BE DECLARED BEFORE ANY CONDITIONAL RETURNS
 
   // Save answers to localStorage whenever they change
-  useEffect(() => {
-    if (Object.keys(answers).length > 0) {
-      localStorage.setItem(`test_${testId}_answers`, JSON.stringify(answers));
-    }
-  }, [answers, testId]);
+ useEffect(() => {
+     try {
+       localStorage.setItem(`test_${testId}_answers`, JSON.stringify(answers || {}));
+     } catch (err) {
+       console.warn("Could not save answers to localStorage", err);
+     }
+   }, [answers, testId]);
 
   // Save timeLeft to localStorage every second
   useEffect(() => {
@@ -396,6 +398,8 @@ const TestTaking = () => {
         setSubmitted(true);
         setShowBubblePanel(false);
         // After submission: try to fetch student's rank (students are authorized)
+        localStorage.removeItem(`test_${testId}_answers`);
+        localStorage.removeItem(`test_${testId}_time`);
         if (
           test.test_type === "PHYSICAL_SHEET" &&
           !response.data.submission.graded
@@ -420,6 +424,8 @@ const TestTaking = () => {
         }
       } else {
         setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
+        localStorage.removeItem(`test_${testId}_answers`);
+        localStorage.removeItem(`test_${testId}_time`);
         // give user a short moment to see toast
         setTimeout(() => navigate("/student/dashboard"), 800);
       }
@@ -484,6 +490,8 @@ const TestTaking = () => {
         ) {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
+          localStorage.removeItem(`test_${testId}_answers`);
+          localStorage.removeItem(`test_${testId}_time`);
         } else {
           try {
             const rankResponse = await axios.get(
@@ -501,6 +509,8 @@ const TestTaking = () => {
         }
       } else {
         setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
+        localStorage.removeItem(`test_${testId}_answers`);
+        localStorage.removeItem(`test_${testId}_time`);
         setTimeout(() => navigate("/student/dashboard"), 800);
       }
     } catch (error) {
