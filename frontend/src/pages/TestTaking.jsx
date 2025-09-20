@@ -1,20 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { useAuth } from '../contexts/AuthContext';
-import TestImageViewer from '../components/TestImageViewer';
-import './TestTaking.css';
-import './TestTaking.security.css';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { useAuth } from "../contexts/AuthContext";
+import TestImageViewer from "../components/TestImageViewer";
+import "./TestTaking.css";
+import "./TestTaking.security.css";
 
 const TestTaking = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   // ALL STATE HOOKS FIRST
   const [test, setTest] = useState(null);
   const [answers, setAnswers] = useState(() => {
-    // Load answers from localStorage if available 
+    // Load answers from localStorage if available
     const saved = localStorage.getItem(`test_${testId}_answers`);
     return saved ? JSON.parse(saved) : {};
   });
@@ -33,27 +33,30 @@ const TestTaking = () => {
   const [showBubblePanel, setShowBubblePanel] = useState(false);
   const [autoSubmitPending, setAutoSubmitPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1024
+  );
   const [showSubmittedModal, setShowSubmittedModal] = useState(false); // for PHYSICAL_SHEET ungraded submissions
   const [timerReady, setTimerReady] = useState(false); // countdown only runs after true time is set
-  const [allowImmediateAutoSubmit, setAllowImmediateAutoSubmit] = useState(false); // guard to avoid immediate auto-submit on load
+  const [allowImmediateAutoSubmit, setAllowImmediateAutoSubmit] =
+    useState(false); // guard to avoid immediate auto-submit on load
 
   // Track window size to toggle mobile layout (single-column bubble sheet)
   useEffect(() => {
     const onResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   // ALL EFFECTS MUST BE DECLARED BEFORE ANY CONDITIONAL RETURNS
-  
+
   // Save answers to localStorage whenever they change
   useEffect(() => {
     if (Object.keys(answers).length > 0) {
       localStorage.setItem(`test_${testId}_answers`, JSON.stringify(answers));
     }
   }, [answers, testId]);
-  
+
   // Save timeLeft to localStorage every second
   useEffect(() => {
     // Persist the current timeLeft on every change (avoid interval with stale closure)
@@ -62,7 +65,7 @@ const TestTaking = () => {
         localStorage.setItem(`test_${testId}_time`, String(timeLeft));
       } catch (err) {
         // ignore quota errors in some environments
-        console.warn('Could not persist test time to localStorage', err);
+        console.warn("Could not persist test time to localStorage", err);
       }
     }
     // No cleanup required
@@ -85,7 +88,9 @@ const TestTaking = () => {
       if (allowImmediateAutoSubmit) {
         handleAutoSubmit();
       } else {
-        console.warn('[TestTaking] timeLeft is 0 but immediate auto-submit is disabled (likely set from server).');
+        console.warn(
+          "[TestTaking] timeLeft is 0 but immediate auto-submit is disabled (likely set from server)."
+        );
       }
     }
   }, [timeLeft, timerReady]);
@@ -97,14 +102,14 @@ const TestTaking = () => {
     const handleContextMenu = (e) => {
       // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U, PrintScreen, etc.
       if (
-        e.key === 'F12' ||
-        e.key === 'PrintScreen' ||
-        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
-        (e.ctrlKey && e.key === 'U') ||
-        (e.ctrlKey && e.key === 'S') ||
-        (e.ctrlKey && e.key === 'P') ||
-        (e.metaKey && e.shiftKey && e.key === '4') // Cmd+Shift+4 (Mac screenshot)
+        e.key === "F12" ||
+        e.key === "PrintScreen" ||
+        (e.ctrlKey && e.shiftKey && e.key === "I") ||
+        (e.ctrlKey && e.shiftKey && e.key === "J") ||
+        (e.ctrlKey && e.key === "U") ||
+        (e.ctrlKey && e.key === "S") ||
+        (e.ctrlKey && e.key === "P") ||
+        (e.metaKey && e.shiftKey && e.key === "4") // Cmd+Shift+4 (Mac screenshot)
       ) {
         e.preventDefault();
         return false;
@@ -114,14 +119,14 @@ const TestTaking = () => {
     // Prevent keyboard shortcuts
     const handleKeyDown = (e) => {
       if (
-        e.key === 'F12' ||
-        e.key === 'PrintScreen' ||
-        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-        (e.ctrlKey && e.shiftKey && e.key === 'J') ||
-        (e.ctrlKey && e.key === 'U') ||
-        (e.ctrlKey && e.key === 'S') ||
-        (e.ctrlKey && e.key === 'P') ||
-        (e.metaKey && e.shiftKey && e.key === '4')
+        e.key === "F12" ||
+        e.key === "PrintScreen" ||
+        (e.ctrlKey && e.shiftKey && e.key === "I") ||
+        (e.ctrlKey && e.shiftKey && e.key === "J") ||
+        (e.ctrlKey && e.key === "U") ||
+        (e.ctrlKey && e.key === "S") ||
+        (e.ctrlKey && e.key === "P") ||
+        (e.metaKey && e.shiftKey && e.key === "4")
       ) {
         e.preventDefault();
         return false;
@@ -135,25 +140,32 @@ const TestTaking = () => {
         visibilityChangeCount++;
         if (visibilityChangeCount > 2) {
           // After multiple visibility changes, assume screenshot attempt
-          setToast({ type: 'error', message: 'تم اكتشاف محاولة أخذ لقطة شاشة. سيتم إنهاء الاختبار بعد 3 محاولات.' });
+          setToast({
+            type: "error",
+            message:
+              "تم اكتشاف محاولة أخذ لقطة شاشة. سيتم إنهاء الاختبار بعد 3 محاولات.",
+          });
           if (visibilityChangeCount >= 3 && timerReady && test) {
             handleAutoSubmit();
           }
         } else {
-          setToast({ type: 'info', message: 'يُرجى عدم محاولة أخذ لقطة شاشة أثناء الاختبار.' });
+          setToast({
+            type: "info",
+            message: "يُرجى عدم محاولة أخذ لقطة شاشة أثناء الاختبار.",
+          });
         }
       }
     };
     // Add event listeners (note: we intentionally do NOT show a beforeunload prompt on refresh)
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Cleanup
     return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -163,7 +175,9 @@ const TestTaking = () => {
   // When timer naturally transitions from >0 to 0, auto-submit immediately
   useEffect(() => {
     if (timerReady && prevTimeLeftRef.current > 0 && timeLeft === 0) {
-      console.debug('[TestTaking] timer reached 0 via countdown — auto-submitting');
+      console.debug(
+        "[TestTaking] timer reached 0 via countdown — auto-submitting"
+      );
       handleAutoSubmit();
     }
     prevTimeLeftRef.current = timeLeft;
@@ -172,7 +186,9 @@ const TestTaking = () => {
   // If server-set timeLeft was 0 and after grace period allowImmediateAutoSubmit flips true, submit
   useEffect(() => {
     if (allowImmediateAutoSubmit && timerReady && timeLeft === 0) {
-      console.debug('[TestTaking] allowImmediateAutoSubmit enabled and timeLeft is 0 — auto-submitting');
+      console.debug(
+        "[TestTaking] allowImmediateAutoSubmit enabled and timeLeft is 0 — auto-submitting"
+      );
       handleAutoSubmit();
     }
   }, [allowImmediateAutoSubmit, timerReady, timeLeft]);
@@ -180,23 +196,26 @@ const TestTaking = () => {
   // HELPER FUNCTIONS (these can be anywhere but are typically after hooks)
   const fetchTest = async () => {
     try {
-      console.debug('[TestTaking] fetchTest start', { testId, env: window?.location?.hostname });
+      console.debug("[TestTaking] fetchTest start", {
+        testId,
+        env: window?.location?.hostname,
+      });
       // First get basic test info
       const startResponse = await axios.get(`/tests/${testId}/start`);
       const testData = startResponse.data.test;
       const submissionMeta = startResponse.data.test?.submission || null;
       const serverNowMs = startResponse.data.test?.server_time_ms; // Get server time
-      console.debug('[TestTaking] startResponse.data', startResponse.data);
-      
+      console.debug("[TestTaking] startResponse.data", startResponse.data);
+
       // For MCQ tests, get questions separately
-      if (testData.test_type === 'MCQ') {
+      if (testData.test_type === "MCQ") {
         const questionsResponse = await axios.get(`/tests/${testId}/questions`);
         const testWithQuestions = questionsResponse.data.test;
         testData.questions = testWithQuestions.questions || [];
       }
-      
+
       setTest(testData);
-      
+
       // If the submission already exists and has been graded, show the result modal immediately
       if (submissionMeta && submissionMeta.graded) {
         try {
@@ -207,41 +226,44 @@ const TestTaking = () => {
           setLoading(false);
           return; // don't initialize timer or answers
         } catch (err) {
-          console.error('Error fetching test result for graded submission:', err);
+          console.error(
+            "Error fetching test result for graded submission:",
+            err
+          );
         }
       }
-      
+
       // Helper: robustly parse server timestamps, always treating naive times as Cairo time
       const parseServerTimestamp = (ts) => {
         if (!ts) return null;
         // If numeric (seconds or ms), treat as UTC milliseconds
-        if (typeof ts === 'number' || /^[0-9]+$/.test(String(ts))) {
+        if (typeof ts === "number" || /^[0-9]+$/.test(String(ts))) {
           const n = Number(ts);
           // If looks like seconds (<= 10 digits), multiply
           if (String(n).length <= 10) return n * 1000;
           return n;
         }
-        
+
         // Clean up the timestamp string
         const s = String(ts);
-        
+
         // If it already has a timezone suffix, just parse it normally
         if (/[zZ]|[+-][0-9]{2}:?[0-9]{2}$/.test(s)) {
           const p = Date.parse(s);
           return Number.isNaN(p) ? null : p;
         }
-        
+
         // For any naive time format without timezone, append Cairo timezone (+03:00)
         // This includes formats like:
         // - 'YYYY-MM-DDTHH:mm'
         // - 'YYYY-MM-DDTHH:mm:ss'
         // - 'YYYY-MM-DD HH:mm:ss'
-        const isoWithCairo = s.replace(' ', 'T') + '+03:00';
+        const isoWithCairo = s.replace(" ", "T") + "+03:00";
         const parsedCairo = Date.parse(isoWithCairo);
         if (!Number.isNaN(parsedCairo)) {
           return parsedCairo;
         }
-        
+
         // Last resort: plain parse
         return Date.parse(s);
       };
@@ -250,12 +272,27 @@ const TestTaking = () => {
       if (testData.duration_minutes) {
         if (submissionMeta && submissionMeta.created_at) {
           // Prefer explicit ms or UTC fields from backend if present
-          const bestTimestamp = submissionMeta.created_at_ms ?? submissionMeta.created_at_utc ?? submissionMeta.created_at;
+          const bestTimestamp =
+            submissionMeta.created_at_ms ??
+            submissionMeta.created_at_utc ??
+            submissionMeta.created_at;
           const startedAtMs = parseServerTimestamp(bestTimestamp);
           const nowMs = serverNowMs || Date.now();
-          const elapsed = startedAtMs ? Math.floor((nowMs - startedAtMs) / 1000) : null;
-          const remaining = elapsed !== null ? testData.duration_minutes * 60 - elapsed : null;
-          console.debug('[TestTaking] computed timer', { duration_minutes: testData.duration_minutes, startedAt: submissionMeta.created_at, startedAt_ms_field: submissionMeta.created_at_ms, startedAt_utc_field: submissionMeta.created_at_utc, startedAtMs, nowMs, elapsed, remaining });
+          const elapsed = startedAtMs
+            ? Math.floor((nowMs - startedAtMs) / 1000)
+            : null;
+          const remaining =
+            elapsed !== null ? testData.duration_minutes * 60 - elapsed : null;
+          console.debug("[TestTaking] computed timer", {
+            duration_minutes: testData.duration_minutes,
+            startedAt: submissionMeta.created_at,
+            startedAt_ms_field: submissionMeta.created_at_ms,
+            startedAt_utc_field: submissionMeta.created_at_utc,
+            startedAtMs,
+            nowMs,
+            elapsed,
+            remaining,
+          });
           if (remaining === null) {
             // couldn't parse server timestamp; start full duration to be safe
             setTimeLeft(testData.duration_minutes * 60);
@@ -266,11 +303,16 @@ const TestTaking = () => {
             // timestamps are parsed differently.
             setTimeLeft(0);
             setAutoSubmitPending(true);
-            console.warn('[TestTaking] remaining <= 0 — deferring auto-submit via timer effect', { remaining });
+            console.warn(
+              "[TestTaking] remaining <= 0 — deferring auto-submit via timer effect",
+              { remaining }
+            );
             // After a short grace period (2s), permit immediate auto-submit if still at 0 and timerReady
             setTimeout(() => {
               setAllowImmediateAutoSubmit(true);
-              console.debug('[TestTaking] allowImmediateAutoSubmit enabled after grace period');
+              console.debug(
+                "[TestTaking] allowImmediateAutoSubmit enabled after grace period"
+              );
             }, 2000);
           } else {
             setTimeLeft(remaining);
@@ -278,29 +320,36 @@ const TestTaking = () => {
           setTimerReady(true);
         } else {
           // No server-side submission timestamp: start from full duration
-          console.debug('[TestTaking] no submission.created_at, starting full duration', { duration_minutes: testData.duration_minutes });
+          console.debug(
+            "[TestTaking] no submission.created_at, starting full duration",
+            { duration_minutes: testData.duration_minutes }
+          );
           setTimeLeft(testData.duration_minutes * 60);
           setTimerReady(true);
         }
       }
-      
+
       // Initialize answers based on test type
       // If submission exists with saved answers, restore them, otherwise initialize empty
       if (submissionMeta && submissionMeta.id) {
         // Use answers from start payload if available; avoid extra /result request
         const raw = submissionMeta.answers;
         if (raw && Object.keys(raw).length > 0) {
-          setAnswers(typeof raw === 'string' ? JSON.parse(raw) : raw);
+          setAnswers(typeof raw === "string" ? JSON.parse(raw) : raw);
         } else {
-          setAnswers(testData.test_type === 'MCQ' ? { answers: [] } : { answers: {} });
+          setAnswers(
+            testData.test_type === "MCQ" ? { answers: [] } : { answers: {} }
+          );
         }
       } else {
-        setAnswers(testData.test_type === 'MCQ' ? { answers: [] } : { answers: {} });
+        setAnswers(
+          testData.test_type === "MCQ" ? { answers: [] } : { answers: {} }
+        );
       }
     } catch (error) {
-      console.error('Error fetching test:', error);
-      setToast({ type: 'error', message: 'حدث خطأ في تحميل الاختبار' });
-      navigate('/student/dashboard');
+      console.error("Error fetching test:", error);
+      setToast({ type: "error", message: "حدث خطأ في تحميل الاختبار" });
+      navigate("/student/dashboard");
     } finally {
       setLoading(false);
     }
@@ -313,35 +362,44 @@ const TestTaking = () => {
       setAutoSubmitPending(true);
       return;
     }
-    
+
     setSubmitting(true);
     try {
       let response;
-      if (test.test_type === 'PHYSICAL_SHEET' && bubbleSheetFile) {
+      if (test.test_type === "PHYSICAL_SHEET" && bubbleSheetFile) {
         const formData = new FormData();
-        formData.append('bubbleSheet', bubbleSheetFile);
-        response = await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        formData.append("bubbleSheet", bubbleSheetFile);
+        response = await axios.post(
+          `/tests/${testId}/upload-bubble-sheet`,
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          }
+        );
       } else {
         response = await axios.post(`/tests/${testId}/submit`, { answers });
       }
-      
+
       if (response?.data?.submission) {
         // mark as submitted to disable inputs and buttons
         setSubmitted(true);
         setShowBubblePanel(false);
         // After submission: try to fetch student's rank (students are authorized)
-        if (test.test_type === 'PHYSICAL_SHEET' && !response.data.submission.graded) {
+        if (
+          test.test_type === "PHYSICAL_SHEET" &&
+          !response.data.submission.graded
+        ) {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
         } else {
           try {
-            const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
+            const rankResponse = await axios.get(
+              `/tests/${testId}/submissions/rank`
+            );
             setSubmissionResult({
               ...response.data.submission,
               rank: rankResponse.data.rank,
-              totalStudents: rankResponse.data.totalStudents
+              totalStudents: rankResponse.data.totalStudents,
             });
           } catch (err) {
             // If rank is unavailable, just show submission without it
@@ -350,14 +408,17 @@ const TestTaking = () => {
           setShowGradeModal(true);
         }
       } else {
-        setToast({ type: 'success', message: 'تم تسليم الاختبار بنجاح' });
+        setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
         // give user a short moment to see toast
-        setTimeout(() => navigate('/student/dashboard'), 800);
+        setTimeout(() => navigate("/student/dashboard"), 800);
       }
     } catch (error) {
-      console.error('Error auto-submitting test:', error);
-      setToast({ type: 'error', message: 'انتهى الوقت ولكن حدث خطأ في التسليم التلقائي' });
-      setTimeout(() => navigate('/student/dashboard'), 800);
+      console.error("Error auto-submitting test:", error);
+      setToast({
+        type: "error",
+        message: "انتهى الوقت ولكن حدث خطأ في التسليم التلقائي",
+      });
+      setTimeout(() => navigate("/student/dashboard"), 800);
     } finally {
       setSubmitting(false);
     }
@@ -377,38 +438,50 @@ const TestTaking = () => {
   const handleSubmit = async () => {
     if (submitting || submitted) return;
     if (!test) {
-      setToast({ type: 'error', message: 'بيانات الاختبار غير متوفرة. الرجاء إعادة المحاولة.' });
+      setToast({
+        type: "error",
+        message: "بيانات الاختبار غير متوفرة. الرجاء إعادة المحاولة.",
+      });
       return;
     }
-    
+
     setSubmitting(true);
     try {
       let response;
-      if (test.test_type === 'PHYSICAL_SHEET' && bubbleSheetFile) {
+      if (test.test_type === "PHYSICAL_SHEET" && bubbleSheetFile) {
         const formData = new FormData();
-        formData.append('bubbleSheet', bubbleSheetFile);
-        response = await axios.post(`/tests/${testId}/upload-bubble-sheet`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        formData.append("bubbleSheet", bubbleSheetFile);
+        response = await axios.post(
+          `/tests/${testId}/upload-bubble-sheet`,
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          }
+        );
       } else {
         // Submit test answers
         response = await axios.post(`/tests/${testId}/submit`, { answers });
       }
-      
+
       if (response?.data?.submission) {
         // mark as submitted to disable inputs and buttons
         setSubmitted(true);
         setShowBubblePanel(false);
-        if (test.test_type === 'PHYSICAL_SHEET' && !response.data.submission.graded) {
+        if (
+          test.test_type === "PHYSICAL_SHEET" &&
+          !response.data.submission.graded
+        ) {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
         } else {
           try {
-            const rankResponse = await axios.get(`/tests/${testId}/submissions/rank`);
+            const rankResponse = await axios.get(
+              `/tests/${testId}/submissions/rank`
+            );
             setSubmissionResult({
               ...response.data.submission,
               rank: rankResponse.data.rank,
-              totalStudents: rankResponse.data.totalStudents
+              totalStudents: rankResponse.data.totalStudents,
             });
           } catch (err) {
             setSubmissionResult(response.data.submission);
@@ -416,12 +489,12 @@ const TestTaking = () => {
           setShowGradeModal(true);
         }
       } else {
-        setToast({ type: 'success', message: 'تم تسليم الاختبار بنجاح' });
-        setTimeout(() => navigate('/student/dashboard'), 800);
+        setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
+        setTimeout(() => navigate("/student/dashboard"), 800);
       }
     } catch (error) {
-      console.error('Error submitting test:', error);
-      setToast({ type: 'error', message: 'حدث خطأ في تسليم الاختبار' });
+      console.error("Error submitting test:", error);
+      setToast({ type: "error", message: "حدث خطأ في تسليم الاختبار" });
     } finally {
       setSubmitting(false);
     }
@@ -429,26 +502,26 @@ const TestTaking = () => {
 
   const handleMCQAnswer = (questionId, answer) => {
     if (submitting || submitted) return;
-    setAnswers(prev => {
+    setAnswers((prev) => {
       const prevAnswers = Array.isArray(prev?.answers) ? prev.answers : [];
       return {
         ...(prev || {}),
         answers: [
-          ...prevAnswers.filter(a => a.id !== questionId),
-          { id: questionId, answer }
-        ]
+          ...prevAnswers.filter((a) => a.id !== questionId),
+          { id: questionId, answer },
+        ],
       };
     });
   };
 
   const handleBubbleSheetAnswer = (questionNumber, answer) => {
     if (submitting || submitted) return;
-    setAnswers(prev => ({
+    setAnswers((prev) => ({
       ...prev,
       answers: {
         ...prev.answers,
-        [questionNumber]: answer
-      }
+        [questionNumber]: answer,
+      },
     }));
   };
 
@@ -463,10 +536,10 @@ const TestTaking = () => {
       for (let q = 1; q <= totalQuestions; q++) {
         items.push(
           <div key={q} className="bubble-row">
-            <div className="bubble-question" style={{ width: '100%' }}>
+            <div className="bubble-question" style={{ width: "100%" }}>
               <div className="question-number">{q}</div>
               <div className="bubble-options">
-                {['A', 'B', 'C', 'D'].map(option => (
+                {["A", "B", "C", "D"].map((option) => (
                   <label key={option} className="bubble-option">
                     <input
                       type="radio"
@@ -486,8 +559,8 @@ const TestTaking = () => {
       }
 
       return (
-        <div className="bubble-sheet" style={{ width: '90%', marginTop: 12 }}>
-          <h3 style={{ textAlign: 'center' }}>ورقة الإجابات</h3>
+        <div className="bubble-sheet" style={{ width: "90%", marginTop: 12 }}>
+          <h3 style={{ textAlign: "center" }}>ورقة الإجابات</h3>
           <div className="bubble-sheet-container">{items}</div>
         </div>
       );
@@ -508,14 +581,16 @@ const TestTaking = () => {
           <div key={questionNum} className="bubble-question">
             <div className="question-number">{questionNum}</div>
             <div className="bubble-options">
-              {['A', 'B', 'C', 'D'].map(option => (
+              {["A", "B", "C", "D"].map((option) => (
                 <label key={option} className="bubble-option">
                   <input
                     type="radio"
                     name={`q${questionNum}`}
                     value={option}
                     checked={answers.answers?.[questionNum] === option}
-                    onChange={() => handleBubbleSheetAnswer(questionNum, option)}
+                    onChange={() =>
+                      handleBubbleSheetAnswer(questionNum, option)
+                    }
                     disabled={submitting || submitted}
                   />
                   <span className="bubble">{option}</span>
@@ -534,8 +609,8 @@ const TestTaking = () => {
     }
 
     return (
-      <div className="bubble-sheet" style={{ width: '100%', marginTop: 12 }}>
-        <h3 style={{ textAlign: 'center' }}>ورقة الإجابات</h3>
+      <div className="bubble-sheet" style={{ width: "100%", marginTop: 12 }}>
+        <h3 style={{ textAlign: "center" }}>ورقة الإجابات</h3>
         <div className="bubble-sheet-container">{rows}</div>
       </div>
     );
@@ -545,21 +620,23 @@ const TestTaking = () => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
+        .toString()
+        .padStart(2, "0")}`;
     }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Helper: compute score circle colors
   const getScoreColors = (scoreValue) => {
     const pct = Number(scoreValue) || 0;
-    let bg = '#f2f6fb';
-    if (pct >= 80) bg = '#28a745'; // green
-    else if (pct >= 50) bg = '#f1c40f'; // yellow
-    else bg = '#e74c3c'; // red
-    return { background: bg, color: '#000' };
+    let bg = "#f2f6fb";
+    if (pct >= 80) bg = "#28a745"; // green
+    else if (pct >= 50) bg = "#f1c40f"; // yellow
+    else bg = "#e74c3c"; // red
+    return { background: bg, color: "#000" };
   };
 
   // NOW CONDITIONAL RETURNS CAN HAPPEN AFTER ALL HOOKS
@@ -574,53 +651,87 @@ const TestTaking = () => {
   const toggleImageViewer = () => {
     setShowImageViewer(!showImageViewer);
   };
-  
-  const toggleBubblePanel = () => setShowBubblePanel(s => !s);
+
+  const toggleBubblePanel = () => setShowBubblePanel((s) => !s);
 
   // For PHYSICAL_SHEET tests (images)
-  if (test.test_type === 'PHYSICAL_SHEET') {
+  if (test.test_type === "PHYSICAL_SHEET") {
     return (
       <div className="test-taking-container">
         <div className="test-header">
           <h1>{test.title}</h1>
           {timeLeft !== null && (
             <div className="timer">
-              الوقت المتبقي: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+              الوقت المتبقي: {Math.floor(timeLeft / 60)}:
+              {(timeLeft % 60).toString().padStart(2, "0")}
             </div>
           )}
         </div>
-        
+
         <div className="test-content">
           <TestImageViewer testId={testId} />
-          
+
           <div className="test-actions">
-            <button 
-              onClick={handleSubmit} 
+            <button
+              onClick={handleSubmit}
               className="submit-btn"
               disabled={submitting || submitted}
             >
-              {submitting ? 'جاري التقديم...' : submitted ? 'تم التسليم' : 'تسليم الاختبار'}
+              {submitting
+                ? "جاري التقديم..."
+                : submitted
+                ? "تم التسليم"
+                : "تسليم الاختبار"}
             </button>
           </div>
         </div>
-        
+
         {/* Submitted (waiting for grading) modal for PHYSICAL_SHEET */}
         {showSubmittedModal && (
           // centered modal with overlay (same style as bubble sheet grade modal)
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1400 }}>
-            <div style={{ background: '#fff', borderRadius: 8, padding: 20, maxWidth: 720, width: '90%', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1400,
+            }}
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 8,
+                padding: 20,
+                maxWidth: 720,
+                width: "90%",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              }}
+            >
               <h3 style={{ marginTop: 0 }}>تم تسليم الاختبار بنجاح</h3>
               <div className="grade-details">
-                <p>تم إرسال إجاباتك بنجاح. سيتم تصحيح الاختبار من قبل المعلم، يرجى الانتظار حتى اكتمال عملية التصحيح.</p>
+                <p>
+                  تم إرسال إجاباتك بنجاح. سيتم تصحيح الاختبار من قبل المعلم،
+                  يرجى الانتظار حتى اكتمال عملية التصحيح.
+                </p>
               </div>
-              <div style={{ textAlign: 'right', marginTop: 18 }}>
-                <button 
+              <div style={{ textAlign: "right", marginTop: 18 }}>
+                <button
                   className="btn-primary close-modal-btn"
                   onClick={() => {
                     setShowSubmittedModal(false);
-                    navigate('/student/dashboard');
+                    navigate("/student/dashboard");
                   }}
-                  style={{ background: '#007bff', color: '#fff', padding: '8px 14px', borderRadius: 6 }}
+                  style={{
+                    background: "#007bff",
+                    color: "#fff",
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                  }}
                 >
                   العودة إلى لوحة التحكم
                 </button>
@@ -636,33 +747,76 @@ const TestTaking = () => {
               <h3>نتيجة الاختبار</h3>
               <div className="grade-display">
                 {(() => {
-                  const scorePct = parseFloat(submissionResult.score || 0).toFixed(0);
+                  const scorePct = parseFloat(
+                    submissionResult.score || 0
+                  ).toFixed(0);
                   const style = getScoreColors(scorePct);
                   return (
-                    <div className="score-circle" style={{ width: 120, height: 120, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: style.background }}>
-                      <span className="score-number" style={{ fontSize: 28, fontWeight: 700, color: style.color }}>{scorePct}%</span>
+                    <div
+                      className="score-circle"
+                      style={{
+                        width: 120,
+                        height: 120,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: style.background,
+                      }}
+                    >
+                      <span
+                        className="score-number"
+                        style={{
+                          fontSize: 28,
+                          fontWeight: 700,
+                          color: style.color,
+                        }}
+                      >
+                        {scorePct}%
+                      </span>
                     </div>
                   );
                 })()}
                 <div className="grade-details">
-                  <p><strong>اسم الاختبار:</strong> {test.title}</p>
-                  <p><strong>الدرجة:</strong> {submissionResult.score || 0} من 100</p>
+                  <p>
+                    <strong>اسم الاختبار:</strong> {test.title}
+                  </p>
+                  <p>
+                    <strong>الدرجة:</strong> {submissionResult.score || 0} من
+                    100
+                  </p>
                   {submissionResult.rank && submissionResult.totalStudents && (
-                    <p><strong>الترتيب:</strong> {submissionResult.rank} من {submissionResult.totalStudents}</p>
+                    <p>
+                      <strong>الترتيب:</strong> {submissionResult.rank} من{" "}
+                      {submissionResult.totalStudents}
+                    </p>
                   )}
-                  <p><strong>حالة التصحيح:</strong> {submissionResult.graded ? 'تم التصحيح' : 'في انتظار التصحيح'}</p>
+                  <p>
+                    <strong>حالة التصحيح:</strong>{" "}
+                    {submissionResult.graded
+                      ? "تم التصحيح"
+                      : "في انتظار التصحيح"}
+                  </p>
                   {submissionResult.teacher_comment && (
-                    <p><strong>تعليق المعلم:</strong> {submissionResult.teacher_comment}</p>
+                    <p>
+                      <strong>تعليق المعلم:</strong>{" "}
+                      {submissionResult.teacher_comment}
+                    </p>
                   )}
-                  <p><strong>تاريخ التسليم:</strong> {new Date(submissionResult.created_at).toLocaleString('ar-EG')}</p>
+                  <p>
+                    <strong>تاريخ التسليم:</strong>{" "}
+                    {new Date(submissionResult.created_at).toLocaleString(
+                      "ar-EG"
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="modal-footer">
-                <button 
+                <button
                   className="btn-primary close-modal-btn"
                   onClick={() => {
                     setShowGradeModal(false);
-                    navigate('/student/dashboard');
+                    navigate("/student/dashboard");
                   }}
                 >
                   العودة للرئيسية
@@ -674,99 +828,250 @@ const TestTaking = () => {
       </div>
     );
   }
-  
+
   // For BUBBLE_SHEET - full screen images with bubble overlay
-  if (test.test_type === 'BUBBLE_SHEET') {
+  if (test.test_type === "BUBBLE_SHEET") {
     // compute responsive panel and button positions
     const panelWidth = Math.min(520, Math.max(280, windowWidth - 48));
-    const buttonLeftOpen = panelWidth >= windowWidth - 40 ? Math.max(12, windowWidth - 56) : panelWidth;
-     return (
-       <div className="test-taking-container bubble-sheet-fullscreen">
-         <TestImageViewer testId={testId} />
+    const buttonLeftOpen =
+      panelWidth >= windowWidth - 40
+        ? Math.max(12, windowWidth - 56)
+        : panelWidth;
+    return (
+      <div className="test-taking-container bubble-sheet-fullscreen">
+        <TestImageViewer testId={testId} />
 
-         {/* Slide-in bubble panel */}
-         <div className={`bubble-panel ${showBubblePanel ? 'open' : ''}`} style={{ position: 'fixed', left: 0, top: 0, height: '100%', width: panelWidth, background: '#fff', zIndex: 1150, transform: showBubblePanel ? 'translateX(0)' : `translateX(-${panelWidth}px)`, transition: 'transform 300ms ease', boxShadow: '2px 0 8px rgba(0,0,0,0.12)'}}>
-           <div style={{ padding: 12, overflowY: 'auto', height: '100%' }}>
-             {/* header with close button to allow contracting on mobile */}
-             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-               <h3 style={{ margin: 0 }}>ورقة الإجابات</h3>
-               <button onClick={toggleBubblePanel} aria-label="إغلاق" style={{ background: 'transparent', border: 'none', fontSize: 18, padding: '6px 8px', cursor: 'pointer' }}>✕</button>
-             </div>
-
-             {/* Timer at top of bubble panel */}
-             {timeLeft !== null && (
-               <div style={{ marginBottom: 12 }}>
-                 <div className={`timer ${timeLeft < 300 ? 'warning' : ''}`}>
-                   الوقت المتبقي: {formatTime(timeLeft)}
-                 </div>
-               </div>
-             )}
-
-             {renderBubbleSheet()}
-             <div style={{ textAlign: 'center', marginTop: 12 }}>
-               <button className="submit-btn" onClick={handleSubmit} disabled={submitting || submitted} style={{ background: '#007bff', color: '#fff', padding: '10px 18px', borderRadius: 6 }}>
-                {submitting ? 'جاري التقديم...' : 'تسليم الاختبار'}
+        {/* Slide-in bubble panel */}
+        <div
+          className={`bubble-panel ${showBubblePanel ? "open" : ""}`}
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 0,
+            height: "100%",
+            width: panelWidth,
+            background: "#fff",
+            zIndex: 1150,
+            transform: showBubblePanel
+              ? "translateX(0)"
+              : `translateX(-${panelWidth}px)`,
+            transition: "transform 300ms ease",
+            boxShadow: "2px 0 8px rgba(0,0,0,0.12)",
+          }}
+        >
+          <div style={{ padding: 12, overflowY: "auto", height: "100%" }}>
+            {/* header with close button to allow contracting on mobile */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <h3 style={{ margin: 0 }}>ورقة الإجابات</h3>
+              <button
+                onClick={toggleBubblePanel}
+                aria-label="إغلاق"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: 18,
+                  padding: "6px 8px",
+                  cursor: "pointer",
+                }}
+              >
+                ✕
               </button>
-             </div>
-           </div>
-         </div>
+            </div>
 
-         {/* Floating toggle button that moves with panel */}
-         <button
-           className="bubble-toggle-button"
-           onClick={toggleBubblePanel}
-           aria-label="Toggle bubble panel"
-           style={{ position: 'fixed', left: showBubblePanel ? buttonLeftOpen : 12, top: '50%', transform: 'translateY(-50%)', background: '#007bff', color: '#fff', borderRadius: 8, padding: '10px 12px', zIndex: 1200, transition: 'left 300ms ease' }}
-         >
-           ☰
-         </button>
+            {/* Timer at top of bubble panel */}
+            {timeLeft !== null && (
+              <div style={{ marginBottom: 12 }}>
+                <div className={`timer ${timeLeft < 300 ? "warning" : ""}`}>
+                  الوقت المتبقي: {formatTime(timeLeft)}
+                </div>
+              </div>
+            )}
+
+            {renderBubbleSheet()}
+            <div style={{ textAlign: "center", marginTop: 12 }}>
+              <button
+                className="submit-btn"
+                onClick={handleSubmit}
+                disabled={submitting || submitted}
+                style={{
+                  background: "#007bff",
+                  color: "#fff",
+                  padding: "10px 18px",
+                  borderRadius: 6,
+                }}
+              >
+                {submitting ? "جاري التقديم..." : "تسليم الاختبار"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Floating toggle button that moves with panel */}
+        <button
+          className="bubble-toggle-button"
+          onClick={toggleBubblePanel}
+          aria-label="Toggle bubble panel"
+          style={{
+            position: "fixed",
+            left: showBubblePanel ? buttonLeftOpen : 12,
+            top: "50%",
+            transform: "translateY(-50%)",
+            background: "#007bff",
+            color: "#fff",
+            borderRadius: 8,
+            padding: "10px 12px",
+            zIndex: 1200,
+            transition: "left 300ms ease",
+          }}
+        >
+          ☰
+        </button>
 
         {/* Grade modal for bubble sheet tests */}
         {showGradeModal && submissionResult && (
           // centered modal with overlay
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1400 }}>
-            <div style={{ background: '#fff', borderRadius: 8, padding: 20, maxWidth: 720, width: '90%', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1400,
+            }}
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 8,
+                padding: 20,
+                maxWidth: 720,
+                width: "90%",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              }}
+            >
               <h3 style={{ marginTop: 0 }}>نتيجة الاختبار</h3>
-              <div className="grade-display" style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+              <div
+                className="grade-display"
+                style={{ display: "flex", gap: 20, alignItems: "center" }}
+              >
                 {(() => {
-                  const scorePct = parseFloat(submissionResult.score || 0).toFixed(0);
+                  const scorePct = parseFloat(
+                    submissionResult.score || 0
+                  ).toFixed(0);
                   const style = getScoreColors(scorePct);
                   return (
-                    <div className="score-circle" style={{ width: 120, height: 120, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: style.background }}>
-                      <span className="score-number" style={{ fontSize: 28, fontWeight: 700, color: style.color }}>{scorePct}%</span>
+                    <div
+                      className="score-circle"
+                      style={{
+                        width: 120,
+                        height: 120,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: style.background,
+                      }}
+                    >
+                      <span
+                        className="score-number"
+                        style={{
+                          fontSize: 28,
+                          fontWeight: 700,
+                          color: style.color,
+                        }}
+                      >
+                        {scorePct}%
+                      </span>
                     </div>
                   );
                 })()}
                 <div className="grade-details">
-                  <p><strong>اسم الاختبار:</strong> {test.title}</p>
-                  <p><strong>الدرجة:</strong> {submissionResult.score || 0} من 100</p>
+                  <p>
+                    <strong>اسم الاختبار:</strong> {test.title}
+                  </p>
+                  <p>
+                    <strong>الدرجة:</strong> {submissionResult.score || 0} من
+                    100
+                  </p>
                   {submissionResult.rank && submissionResult.totalStudents && (
-                    <p><strong>الترتيب:</strong> {submissionResult.rank} من {submissionResult.totalStudents}</p>
+                    <p>
+                      <strong>الترتيب:</strong> {submissionResult.rank} من{" "}
+                      {submissionResult.totalStudents}
+                    </p>
                   )}
-                  <p><strong>حالة التصحيح:</strong> {submissionResult.graded ? 'تم التصحيح' : 'في انتظار التصحيح'}</p>
+                  <p>
+                    <strong>حالة التصحيح:</strong>{" "}
+                    {submissionResult.graded
+                      ? "تم التصحيح"
+                      : "في انتظار التصحيح"}
+                  </p>
                   {submissionResult.teacher_comment && (
-                    <p><strong>تعليق المعلم:</strong> {submissionResult.teacher_comment}</p>
+                    <p>
+                      <strong>تعليق المعلم:</strong>{" "}
+                      {submissionResult.teacher_comment}
+                    </p>
                   )}
-                  <p><strong>تاريخ التسليم:</strong> {submissionResult.created_at ? new Date(submissionResult.created_at).toLocaleString('ar-EG') : ''}</p>
+                  <p>
+                    <strong>تاريخ التسليم:</strong>{" "}
+                    {submissionResult.created_at
+                      ? new Date(submissionResult.created_at).toLocaleString(
+                          "ar-EG"
+                        )
+                      : ""}
+                  </p>
                 </div>
               </div>
-              <div style={{ textAlign: 'right', marginTop: 18 }}>
-                <button className="btn-primary close-modal-btn" onClick={() => { setShowGradeModal(false); navigate('/student/dashboard'); }} style={{ background: '#007bff', color: '#fff', padding: '8px 14px', borderRadius: 6 }}>العودة للرئيسية</button>
+              <div style={{ textAlign: "right", marginTop: 18 }}>
+                <button
+                  className="btn-primary close-modal-btn"
+                  onClick={() => {
+                    setShowGradeModal(false);
+                    navigate("/student/dashboard");
+                  }}
+                  style={{
+                    background: "#007bff",
+                    color: "#fff",
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                  }}
+                >
+                  العودة للرئيسية
+                </button>
               </div>
             </div>
           </div>
         )}
 
-         {/* Toast */}
-         {toast && (
-           <div className={`toast ${toast.type}`} style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 1300 }}>
-             {toast.message}
-           </div>
-         )}
-       </div>
-     );
-   }
-  
+        {/* Toast */}
+        {toast && (
+          <div
+            className={`toast ${toast.type}`}
+            style={{
+              position: "fixed",
+              bottom: 24,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 1300,
+            }}
+          >
+            {toast.message}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // For other test types (MCQ, BUBBLE_SHEET, etc.)
   return (
     <div className="test-taking-container">
@@ -774,8 +1079,8 @@ const TestTaking = () => {
         <div className="test-image-viewer-modal">
           <div className="test-image-viewer-header">
             <h3>عرض صور الاختبار</h3>
-            <button 
-              className="close-button" 
+            <button
+              className="close-button"
               onClick={toggleImageViewer}
               aria-label="إغلاق معرض الصور"
             >
@@ -792,7 +1097,7 @@ const TestTaking = () => {
         <div className="test-title-container">
           <h2>{test.title}</h2>
           {test.images && test.images.length > 0 && (
-            <button 
+            <button
               className="view-images-button"
               onClick={toggleImageViewer}
               title="عرض صور الاختبار"
@@ -801,93 +1106,142 @@ const TestTaking = () => {
             </button>
           )}
         </div>
-        
+
         {timeLeft !== null && (
-          <div className={`timer ${timeLeft < 300 ? 'warning' : ''}`}>
+          <div className={`timer ${timeLeft < 300 ? "warning" : ""}`}>
             <span>الوقت المتبقي: {formatTime(timeLeft)}</span>
           </div>
         )}
-
       </div>
 
-      <div className="test-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div
+        className="test-content"
+        style={{ display: "flex", flexDirection: "column", gap: 16 }}
+      >
         {test.questions && test.questions.length > 0 ? (
           test.questions.map((question, index) => {
-            const isMCQ = question.type === 'MCQ' && Array.isArray(question.options);
-            const selected = (answers?.answers || []).find(a => a.id === question.id)?.answer;
-            
-            const image = test.images && test.images.find(img => img.display_order === question.media_index);
-            const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.egypt-tech.com";
-            const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
+            const isMCQ =
+              question.type === "MCQ" && Array.isArray(question.options);
+            const selected = (answers?.answers || []).find(
+              (a) => a.id === question.id
+            )?.answer;
+
+             const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.egypt-tech.com";
+             const image = test.images?.find(img => img.display_order === question.media_index);
+             const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
 
             return (
               <div
                 key={question.id || index}
                 className="question-card"
                 style={{
-                  background: '#fff',
+                  background: "#fff",
                   borderRadius: 8,
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+                  boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
                   padding: 16,
-                  position: 'relative',
-                  border: '1px solid #eee'
+                  position: "relative",
+                  border: "1px solid #eee",
                 }}
               >
                 {/* Number badge top-right */}
-                <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    background: '#f1f3f4',
-                    borderRadius: 20,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    color: '#333'
-                  }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 12,
+                    right: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      background: "#f1f3f4",
+                      borderRadius: 20,
+                      padding: "4px 10px",
+                      fontSize: 12,
+                      color: "#333",
+                    }}
+                  >
                     سؤال {index + 1}
                   </span>
                   {question.points && (
-                    <span style={{ fontSize: 12, color: '#666' }}>({question.points} نقطة)</span>
+                    <span style={{ fontSize: 12, color: "#666" }}>
+                      ({question.points} نقطة)
+                    </span>
                   )}
                 </div>
 
                 {/* Question text and media */}
                 <div style={{ paddingTop: 24 }}>
                   {imageUrl && (
-                    <div className="question-media" style={{ marginBottom: 8 }}>
-                      <img src={imageUrl} alt="سؤال" style={{ maxWidth: '100%', borderRadius: 6 }} />
+                    <div
+                      className="question-media"
+                      style={{ marginBottom: 12 }}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={`سؤال ${index + 1}`}
+                        style={{ maxWidth: "100%", borderRadius: 6 }}
+                      />
                     </div>
                   )}
-                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10, lineHeight: 1.6 }}>
+                  <div
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 600,
+                      marginBottom: 10,
+                      lineHeight: 1.6,
+                    }}
+                  >
                     {question.text}
                   </div>
-                  {question.media && !imageUrl && ( // Fallback for old structure
-                    <div className="question-media" style={{ marginTop: 8 }}>
-                      {String(question.media).endsWith('.mp4') ? (
-                        <video controls style={{ maxWidth: '100%', borderRadius: 6 }}>
-                          <source src={question.media} type="video/mp4" />
-                        </video>
-                      ) : (
-                        <img src={question.media} alt="سؤال" style={{ maxWidth: '100%', borderRadius: 6 }} />
-                      )}
-                    </div>
-                  )}
+                  {question.media &&
+                    !imageUrl && ( // Fallback for old structure
+                      <div className="question-media" style={{ marginTop: 8 }}>
+                        {String(question.media).endsWith(".mp4") ? (
+                          <video
+                            controls
+                            style={{ maxWidth: "100%", borderRadius: 6 }}
+                          >
+                            <source src={question.media} type="video/mp4" />
+                          </video>
+                        ) : (
+                          <img
+                            src={question.media}
+                            alt="سؤال"
+                            style={{ maxWidth: "100%", borderRadius: 6 }}
+                          />
+                        )}
+                      </div>
+                    )}
                 </div>
 
                 {/* Options for MCQ */}
                 {isMCQ && (
-                  <div className="options" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+                  <div
+                    className="options"
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                      marginTop: 12,
+                    }}
+                  >
                     {question.options.map((option, optIndex) => (
                       <label
                         key={optIndex}
                         className="option"
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
+                          display: "flex",
+                          alignItems: "center",
                           gap: 10,
-                          padding: '10px 12px',
+                          padding: "10px 12px",
                           borderRadius: 8,
-                          border: '1px solid #e5e7eb',
-                          cursor: submitting || submitted ? 'not-allowed' : 'pointer',
-                          background: selected === option ? '#f8fafc' : '#fff'
+                          border: "1px solid #e5e7eb",
+                          cursor:
+                            submitting || submitted ? "not-allowed" : "pointer",
+                          background: selected === option ? "#f8fafc" : "#fff",
                         }}
                       >
                         <input
@@ -905,13 +1259,25 @@ const TestTaking = () => {
                 )}
 
                 {/* Open answer */}
-                {question.type === 'OPEN' && (
+                {question.type === "OPEN" && (
                   <div className="open-answer" style={{ marginTop: 12 }}>
                     <textarea
                       placeholder="اكتب إجابتك هنا..."
-                      value={(answers?.answers || []).find(a => a.id === question.id)?.answer || ''}
-                      onChange={(e) => handleMCQAnswer(question.id, e.target.value)}
-                      style={{ width: '100%', minHeight: 96, padding: 10, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                      value={
+                        (answers?.answers || []).find(
+                          (a) => a.id === question.id
+                        )?.answer || ""
+                      }
+                      onChange={(e) =>
+                        handleMCQAnswer(question.id, e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        minHeight: 96,
+                        padding: 10,
+                        borderRadius: 8,
+                        border: "1px solid #e5e7eb",
+                      }}
                       disabled={submitting || submitted}
                     />
                   </div>
@@ -927,47 +1293,137 @@ const TestTaking = () => {
       </div>
 
       {/* Actions footer */}
-      <div className="test-actions" style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+      <div
+        className="test-actions"
+        style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}
+      >
         <button
           onClick={handleSubmit}
           className="submit-btn"
           disabled={submitting || submitted}
-          style={{ background: '#007bff', color: '#fff', padding: '10px 18px', borderRadius: 6 }}
+          style={{
+            background: "#007bff",
+            color: "#fff",
+            padding: "10px 18px",
+            borderRadius: 6,
+          }}
         >
-          {submitting ? 'جاري التقديم...' : submitted ? 'تم التسليم' : 'تسليم الاختبار'}
+          {submitting
+            ? "جاري التقديم..."
+            : submitted
+            ? "تم التسليم"
+            : "تسليم الاختبار"}
         </button>
       </div>
 
       {showGradeModal && submissionResult && (
         // centered modal with overlay
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1400 }}>
-          <div style={{ background: '#fff', borderRadius: 8, padding: 20, maxWidth: 720, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1400,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 8,
+              padding: 20,
+              maxWidth: 720,
+              width: "90%",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            }}
+          >
             <h3 style={{ marginTop: 0 }}>نتيجة الاختبار</h3>
-            <div className="grade-display" style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+            <div
+              className="grade-display"
+              style={{ display: "flex", gap: 20, alignItems: "center" }}
+            >
               {(() => {
-                const scorePct = parseFloat(submissionResult.score || 0).toFixed(0);
+                const scorePct = parseFloat(
+                  submissionResult.score || 0
+                ).toFixed(0);
                 const style = getScoreColors(scorePct);
                 return (
-                  <div className="score-circle" style={{ width: 120, height: 120, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: style.background }}>
-                    <span className="score-number" style={{ fontSize: 28, fontWeight: 700, color: style.color }}>{scorePct}%</span>
+                  <div
+                    className="score-circle"
+                    style={{
+                      width: 120,
+                      height: 120,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: style.background,
+                    }}
+                  >
+                    <span
+                      className="score-number"
+                      style={{
+                        fontSize: 28,
+                        fontWeight: 700,
+                        color: style.color,
+                      }}
+                    >
+                      {scorePct}%
+                    </span>
                   </div>
                 );
               })()}
               <div className="grade-details">
-                <p><strong>اسم الاختبار:</strong> {test.title}</p>
-                <p><strong>الدرجة:</strong> {submissionResult.score || 0} من 100</p>
+                <p>
+                  <strong>اسم الاختبار:</strong> {test.title}
+                </p>
+                <p>
+                  <strong>الدرجة:</strong> {submissionResult.score || 0} من 100
+                </p>
                 {submissionResult.rank && submissionResult.totalStudents && (
-                  <p><strong>الترتيب:</strong> {submissionResult.rank} من {submissionResult.totalStudents}</p>
+                  <p>
+                    <strong>الترتيب:</strong> {submissionResult.rank} من{" "}
+                    {submissionResult.totalStudents}
+                  </p>
                 )}
-                <p><strong>حالة التصحيح:</strong> {submissionResult.graded ? 'تم التصحيح' : 'في انتظار التصحيح'}</p>
+                <p>
+                  <strong>حالة التصحيح:</strong>{" "}
+                  {submissionResult.graded ? "تم التصحيح" : "في انتظار التصحيح"}
+                </p>
                 {submissionResult.teacher_comment && (
-                  <p><strong>تعليق المعلم:</strong> {submissionResult.teacher_comment}</p>
+                  <p>
+                    <strong>تعليق المعلم:</strong>{" "}
+                    {submissionResult.teacher_comment}
+                  </p>
                 )}
-                <p><strong>تاريخ التسليم:</strong> {submissionResult.created_at ? new Date(submissionResult.created_at).toLocaleString('ar-EG') : ''}</p>
+                <p>
+                  <strong>تاريخ التسليم:</strong>{" "}
+                  {submissionResult.created_at
+                    ? new Date(submissionResult.created_at).toLocaleString(
+                        "ar-EG"
+                      )
+                    : ""}
+                </p>
               </div>
             </div>
-            <div style={{ textAlign: 'right', marginTop: 18 }}>
-              <button className="btn-primary close-modal-btn" onClick={() => { setShowGradeModal(false); navigate('/student/dashboard'); }} style={{ background: '#007bff', color: '#fff', padding: '8px 14px', borderRadius: 6 }}>العودة للرئيسية</button>
+            <div style={{ textAlign: "right", marginTop: 18 }}>
+              <button
+                className="btn-primary close-modal-btn"
+                onClick={() => {
+                  setShowGradeModal(false);
+                  navigate("/student/dashboard");
+                }}
+                style={{
+                  background: "#007bff",
+                  color: "#fff",
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                }}
+              >
+                العودة للرئيسية
+              </button>
             </div>
           </div>
         </div>
@@ -975,7 +1431,16 @@ const TestTaking = () => {
 
       {/* Toast */}
       {toast && (
-        <div className={`toast ${toast.type}`} style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 1300 }}>
+        <div
+          className={`toast ${toast.type}`}
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1300,
+          }}
+        >
           {toast.message}
         </div>
       )}
