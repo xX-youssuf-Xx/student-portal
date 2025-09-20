@@ -1130,7 +1130,7 @@ const TestTaking = () => {
              const image = test.images?.find(img => img.display_order === question.media_index);
              const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
 
-              console.debug("[Q_RENDER]", {
+              console.log("[Q_RENDER]", {
                  qIndex: index,
                  questionId: question.id,
                  mediaIndex: question.media_index,
