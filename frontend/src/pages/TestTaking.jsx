@@ -817,7 +817,8 @@ const TestTaking = () => {
             const selected = (answers?.answers || []).find(a => a.id === question.id)?.answer;
             
             const image = test.images && test.images.find(img => img.display_order === question.media_index);
-            const imageUrl = image ? `${window.location.origin}/${image.image_path.replace(/\\/g, '/')}` : null;
+            const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.egypt-tech.com";
+            const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
 
             return (
               <div
