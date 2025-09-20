@@ -351,6 +351,68 @@
   border-bottom: 2px solid #ecf0f1;
 }
 
+.test-controls {
+  margin: 20px 0;
+  padding: 15px 0;
+  border-top: 1px solid #ecf0f1;
+  border-bottom: 1px solid #ecf0f1;
+}
+
+.toggle-group {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.toggle-item {
+  display: flex;
+  align-items: center;
+}
+
+.toggle-switch {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 40px;
+  height: 20px;
+  background: #e0e0e0;
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.3s ease;
+  margin-left: 10px;
+}
+
+.toggle-switch:checked {
+  background: #3b82f6;
+}
+
+.toggle-switch:before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  top: 2px;
+  left: 2px;
+  transition: all 0.3s ease;
+}
+
+.toggle-switch:checked:before {
+  left: 22px;
+}
+
+.toggle-label {
+  font-size: 14px;
+  color: #4a5568;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+
 .section-header h3 {
   margin: 0;
   color: #2c3e50;

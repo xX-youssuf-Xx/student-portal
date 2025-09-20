@@ -71,41 +71,96 @@ const StudentManagement = () => {
   };
 
   const ResultsLineChart = ({ data }) => {
-    const labels = (data || []).map(r => r.submitted_at || '');
+    // Sort data by date in ascending order for the graph
+    const sortedData = [...(data || [])].sort((a, b) => 
+      new Date(a.submitted_at) - new Date(b.submitted_at)
+    );
+
+    // Format dates to show only the date part
+    const formatDateLabel = (dateString) => {
+      if (!dateString) return '';
+      return new Date(dateString).toLocaleDateString('ar-EG', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    };
+
     const chartData = {
-      labels,
+      labels: sortedData.map(r => formatDateLabel(r.submitted_at)),
       datasets: [
         {
           label: 'النسبة %',
-          data: (data || []).map(r => r.visible_score ?? r.score ?? 0),
+          data: sortedData.map(r => parseFloat(r.visible_score ?? r.score ?? 0)),
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.2)',
           tension: 0.3,
           pointRadius: 4,
           pointHoverRadius: 6,
+          fill: true
         }
       ]
     };
+
+    const getTotalQuestions = (test) => {
+      if (!test.correct_answers) return 0;
+      if (test.test_type === 'MCQ') {
+        return test.correct_answers.questions?.length || 0;
+      } else if (test.test_type === 'BUBBLE_SHEET') {
+        return Object.keys(test.correct_answers.answers || {}).length;
+      }
+      return 0;
+    };
+
+    const getCorrectAnswers = (test) => {
+      if (!test.score || !test.correct_answers) return 0;
+      const totalQuestions = getTotalQuestions(test);
+      if (totalQuestions === 0) return 0;
+      return Math.round((parseFloat(test.score) / 100) * totalQuestions);
+    };
+
     const opts = {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (ctx) => `${ctx.parsed.y}%`,
-            afterBody: () => '',
+            label: (context) => {
+              const data = sortedData[context.dataIndex];
+              const totalQuestions = getTotalQuestions(data);
+              const correctAnswers = getCorrectAnswers(data);
+              return [
+                `النسبة: ${parseFloat(data.visible_score ?? data.score ?? 0).toFixed(2)}%`,
+                `الإجابات الصحيحة: ${correctAnswers}/${totalQuestions}`
+              ];
+            },
             title: (items) => {
               const idx = items?.[0]?.dataIndex ?? 0;
-              const item = data[idx];
-              const title = (item?.title || '').slice(0, 30);
-              return `${title}`;
+              const item = sortedData[idx];
+              return item?.title || '';
             }
           }
         }
       },
-      scales: { y: { min: 0, max: 100, ticks: { stepSize: 10 } } }
+      scales: { 
+        y: { 
+          min: 0, 
+          max: 100, 
+          ticks: { stepSize: 10 },
+          title: { display: true, text: 'النسبة %' }
+        },
+        x: {
+          reverse: false // Make graph go from left to right
+        }
+      }
     };
-    return <Line data={chartData} options={opts} />;
+
+    return (
+      <div style={{ height: '400px', width: '100%' }}>
+        <Line data={chartData} options={opts} />
+      </div>
+    );
   };
 
   const handleSaveStudent = async (formData, id) => {
@@ -198,18 +253,29 @@ const StudentManagement = () => {
       )}
 
       {showResultsModal && (
-        <div className="modal-overlay" onClick={() => setShowResultsModal(false)}>
-          <div className="modal-content" style={{ maxWidth: 900 }} onClick={(e) => e.stopPropagation()}>
-            <h2>نتائج الطالب: {resultsData.student?.name}</h2>
-            {resultsLoading ? (
-              <div style={{ padding: 20 }}>جاري التحميل...</div>
-            ) : (
-              <div style={{ padding: 10 }}>
-                <ResultsLineChart data={(resultsData.results || [])} />
-              </div>
-            )}
-            <div className="modal-actions">
-              <button className="cancel-btn" onClick={() => setShowResultsModal(false)}>إغلاق</button>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '800px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>سجل درجات الطالب: {resultsData.student?.name}</h3>
+              <button onClick={() => setShowResultsModal(false)} className="close-btn">×</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px' }}>
+              {resultsLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>جاري تحميل النتائج...</div>
+              ) : resultsData.results.length > 0 ? (
+                <>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <p style={{ textAlign: 'center', color: '#64748b' }}>
+                      تطور الأداء في الاختبارات السابقة
+                    </p>
+                  </div>
+                  <ResultsLineChart data={resultsData.results} />
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                  لا توجد نتائج متاحة لهذا الطالب بعد
+                </div>
+              )}
             </div>
           </div>
         </div>

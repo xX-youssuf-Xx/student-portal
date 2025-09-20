@@ -69,6 +69,17 @@ const TestManagement = () => {
     }
   };
 
+  const toggleShowGradeOutside = async (testId, currentValue) => {
+    try {
+      await axios.patch(`/tests/${testId}`, {
+        show_grade_outside: !currentValue
+      });
+      fetchTests();
+    } catch (error) {
+      console.error('Error updating show grade outside:', error);
+    }
+  };
+
   const formatDate = (iso) => {
     if (!iso) return '';
     // Accept both 'YYYY-MM-DDTHH:mm' and 'YYYY-MM-DD HH:mm' and optional seconds/timezone
@@ -173,15 +184,31 @@ const TestManagement = () => {
               </div>
 
               <div className="test-controls">
-                <div className="view-permission">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={test.view_permission}
-                      onChange={() => toggleViewPermission(test.id, test.view_permission)}
-                    />
-                    عرض النتائج للطلاب
-                  </label>
+                <div className="toggle-group">
+                  <div className="toggle-item">
+                    <label>
+                      <input
+                        type="checkbox"
+                        className="toggle-switch"
+                        checked={test.view_permission}
+                        onChange={() => toggleViewPermission(test.id, test.view_permission)}
+                      />
+                      <span className="toggle-label">عرض النتائج</span>
+                    </label>
+                  </div>
+                  {test.view_type === 'TEACHER_CONTROLLED' && (
+                    <div className="toggle-item">
+                      <label>
+                        <input
+                          type="checkbox"
+                          className="toggle-switch"
+                          checked={test.show_grade_outside}
+                          onChange={() => toggleShowGradeOutside(test.id, test.show_grade_outside)}
+                        />
+                        <span className="toggle-label">عرض الدرجة</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
