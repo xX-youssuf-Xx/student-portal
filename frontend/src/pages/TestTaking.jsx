@@ -212,7 +212,7 @@ const TestTaking = () => {
         const questionsResponse = await axios.get(`/tests/${testId}/questions`);
         const testWithQuestions = questionsResponse.data.test;
         testData.questions = testWithQuestions.questions || [];
-      }
+        testData.images = testWithQuestions.images || [];      }
 
       setTest(testData);
 
@@ -354,6 +354,17 @@ const TestTaking = () => {
       setLoading(false);
     }
   };
+
+   useEffect(() => {
+       if (test?.questions) {
+         console.log("[TEST DEBUG] questions length:", test.questions.length);
+         console.log("[TEST DEBUG] images:", test.images);
+         test.questions.forEach((q, i) => {
+           const matched = test.images?.find(img => img.display_order === q.media_index);
+           console.log("[Q_MATCH]", { qIndex: i, questionId: q.id, mediaIndex: q.media_index, matched });
+         });
+       }
+     }, [test]);
 
   const handleAutoSubmit = async () => {
     if (submitting || submitted) return;
@@ -1129,19 +1140,6 @@ const TestTaking = () => {
              const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.egypt-tech.com";
              const image = test.images?.find(img => img.display_order === question.media_index);
              const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
-
-              console.log("[Q_RENDER]", {
-                 qIndex: index,
-                 questionId: question.id,
-                 mediaIndex: question.media_index,
-                 images: test.images?.map(img => ({
-                   id: img.id,
-                   display_order: img.display_order,
-                   path: img.image_path
-                 })),
-                 matchedImage: image ? { display_order: image.display_order, path: image.image_path } : null,
-                 imageUrl
-               });
 
             return (
               <div
