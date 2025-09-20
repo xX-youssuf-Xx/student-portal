@@ -60,6 +60,9 @@ router.patch(
   testController.updateBubbleAnswers
 );
 
+// Public routes
+router.get('/tests/:id/submissions/rank', testController.getStudentRank);
+
 // Student routes (protected)
 router.get('/available-tests', authenticateToken, testController.getAvailableTests);
 router.get('/test-history', authenticateToken, testController.getStudentTestHistory);
@@ -69,6 +72,5 @@ router.post('/tests/:id/submit', authenticateToken, testController.submitTest);
 router.get('/tests/:id/result', authenticateToken, testController.getTestResult);
 router.get('/tests/:id/images', authenticateToken, testController.getTestImages);
 router.post('/tests/:id/upload-bubble-sheet', authenticateToken, upload.single('bubbleSheet'), testController.uploadBubbleSheet);
-router.get('/tests/:id/submissions/rank', authenticateToken, testController.getStudentRank);
 
 export default router;
