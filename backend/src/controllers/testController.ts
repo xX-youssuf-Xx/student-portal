@@ -145,7 +145,7 @@ class TestController {
         try {
           const imagePaths = files.map((file, index) => ({
             testId: test.id,
-            imagePath: file.path.replace(/\/g, '/'), // Convert to forward slashes for consistency
+            imagePath: file.path.replace(/\\/g, '/'), // Convert to forward slashes for consistency
             displayOrder: index // Set display order based on array index
           }));
           
@@ -211,9 +211,9 @@ class TestController {
         images: test.images?.map(img => ({
           ...img,
           // Convert relative paths to absolute URLs if needed
-          image_url: img.image_path.startsWith('http') 
-            ? img.image_path 
-            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\/g, '/')}`
+          image_url: img.image_path.startsWith('http')
+            ? img.image_path
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
         }))
       };
 
@@ -257,7 +257,7 @@ class TestController {
           // Add new images
           const imagePaths = files.map((file, index) => ({
             testId,
-            imagePath: file.path.replace(/\/g, '/'),
+            imagePath: file.path.replace(/\\/g, '/'),
             displayOrder: index
           }));
           
@@ -291,9 +291,9 @@ class TestController {
         ...testWithImages,
         images: testWithImages.images?.map(img => ({
           ...img,
-          image_url: img.image_path.startsWith('http') 
-            ? img.image_path 
-            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\/g, '/')}`
+          image_url: img.image_path.startsWith('http')
+            ? img.image_path
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
         }))
       } : null;
       
