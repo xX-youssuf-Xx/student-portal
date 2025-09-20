@@ -314,7 +314,6 @@ const DraggableImage = ({ image, index, onRemove, onDragStart, onDragOver, onDro
   </div>
 );
 
-// Test Creation/Edit Modal Component
 const TestModal = ({ test, onClose, onSave }) => {
   // Display helper: convert ISO or database datetime string to datetime-local input format (YYYY-MM-DDTHH:MM)
   const isoToDatetimeLocalPreserve = (dateTimeStr) => {
@@ -352,157 +351,50 @@ const TestModal = ({ test, onClose, onSave }) => {
     bubbleAnswers: test?.correct_answers?.answers || {}
   });
   
-  const [images, setImages] = useState(test?.images?.map(img => ({
-    id: img.id || `img-${Date.now()}`,
-    url: img.url,
-    file: null
-  })) || []);
-  
-  const [draggedItem, setDraggedItem] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef(null);
-
-  // Handle image upload
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const newImages = files.map(file => ({
-      id: `img-${Date.now()}-${file.name}`,
-      file,
-      preview: URL.createObjectURL(file)
-    }));
-    setImages([...images, ...newImages]);
-    // Clear the input value so selecting the same files again will retrigger onChange
-    if (e.target) {
-      e.target.value = '';
-    }
-  };
-
-  // Handle image removal
-  const handleRemoveImage = (index) => {
-    const newImages = [...images];
-    newImages.splice(index, 1);
-    setImages(newImages);
-  };
-
-  // Drag and drop handlers
-  const handleDragStart = (e, index) => {
-    setDraggedItem(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.currentTarget);
-  };
-
-  const handleDragOver = (index) => {
-    if (draggedItem === null || draggedItem === index) return;
-    
-    const newImages = [...images];
-    const draggedImage = newImages[draggedItem];
-    newImages.splice(draggedItem, 1);
-    newImages.splice(index, 0, draggedImage);
-    
-    setDraggedItem(index);
-    setImages(newImages);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
-      console.log('Submitting form with student_group:', formData.student_group);
       const formDataToSend = new FormData();
-      
-      // Helper: Append Cairo timezone (+03:00) to dates for correct server handling
-      const toCairoIso = (val) => {
-        if (!val) return val;
-        // Ensure we only have YYYY-MM-DDTHH:mm
-        const base = String(val).slice(0, 16);
-        // Return with Cairo timezone for unambiguous timezone handling
-        return `${base}:00+03:00`;
+      const mediaFiles = [];
+
+      const questionsForPayload = formData.questions.map(q => {
+        const newQ = {...q};
+        if (newQ.mediaFile) {
+          newQ.media_index = mediaFiles.length;
+          mediaFiles.push(newQ.mediaFile);
+        }
+        delete newQ.media;
+        delete newQ.mediaFile;
+        return newQ;
+      });
+
+      const testData = {
+        ...formData,
+        questions: undefined,
+        correct_answers: {
+            questions: questionsForPayload
+        }
       };
-
-      // Add basic fields
-      Object.entries(formData).forEach(([key, value]) => {
-        if (key === 'questions' || key === 'bubbleAnswers') return;
-        if (key === 'student_group') {
-          // For 3MIDDLE, don't send group (always null)
-          // For other grades, only send if not empty (empty means "all groups" = null)
-          if (formData.grade === '3MIDDLE') return;
-          if (value !== '' && value !== null && value !== undefined) {
-            console.log('Adding student_group:', value);
-            formDataToSend.append(key, value);
-          } else {
-            console.log('Skipping student_group (empty/null):', value);
-          }
-          return;
-        }
-        if (key === 'test_group') {
-          if (String(value).trim() !== '') {
-            formDataToSend.append('test_group', String(value));
-          }
-          return;
-        }
-        if (value !== '' && value !== null) {
-          if (key === 'start_time' || key === 'end_time') {
-            formDataToSend.append(key, toCairoIso(value));
-          } else {
-            formDataToSend.append(key, value);
-          }
-        }
-      });
-
-      // Add correct answers based on test type
-      let correctAnswers = {};
-      if (formData.test_type === 'MCQ') {
-        // Persist media index; media (preview URL) is for client preview only
-        const questionsOut = (formData.questions || []).map((q, idx) => ({
-          id: q.id,
-          text: q.text,
-          type: q.type,
-          options: q.options,
-          correct: q.correct,
-          media_index: typeof q.media_index === 'number' ? q.media_index : idx
-        }));
-        correctAnswers = { questions: questionsOut };
-      } else if (formData.test_type === 'BUBBLE_SHEET' || formData.test_type === 'PHYSICAL_SHEET') {
-        correctAnswers = { answers: formData.bubbleAnswers };
-      }
       
-      if (Object.keys(correctAnswers).length > 0) {
-        formDataToSend.append('correct_answers', JSON.stringify(correctAnswers));
-      }
+      delete testData.bubbleAnswers;
 
-      // Always send an explicit empty pdf field
-      formDataToSend.append('pdf', '');
+      formDataToSend.append('testData', JSON.stringify(testData));
 
-      // Add images
-      images.forEach((image, index) => {
-        if (image.file) {
-          formDataToSend.append(`images[${index}]`, image.file);
-        } else if (image.url) {
-          // If it's an existing image (has URL but no file), send the URL
-          formDataToSend.append(`existing_images[${index}]`, image.url);
-        }
+      mediaFiles.forEach((file) => {
+        formDataToSend.append('media', file);
       });
-
-      // If any new image files were provided, instruct server to replace existing images
-      if (images.some(img => img.file)) {
-        formDataToSend.append('replaceImages', 'true');
-      }
-
-      // Do not send image_order here. Image ordering is managed server-side by display_order.
 
       if (test) {
         await axios.put(`/tests/${test.id}`, formDataToSend, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 'Content-Type': 'multipart/form-data' },
         });
       } else {
         await axios.post('/tests', formDataToSend, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 'Content-Type': 'multipart/form-data' },
         });
       }
 
@@ -657,64 +549,6 @@ const TestModal = ({ test, onClose, onSave }) => {
         </div>
           </div>
 
-          {/* Image Upload Section */}
-          <div className="section-header">
-            <h3>صور الاختبار</h3>
-          </div>
-          
-          {/* Hide image upload for MCQ tests (first option). When visible, make the dropzone more distinguished */}
-          {formData.test_type !== 'MCQ' && (
-            <div className="mb-4">
-              <label
-                htmlFor="image-upload"
-                className="dropzone p-4 rounded-lg text-center cursor-pointer mb-4"
-                style={{ border: '3px dashed #1e90ff', backgroundColor: '#f0f8ff' }}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleImageUpload({ target: { files: e.dataTransfer.files } });
-                }}
-                onClick={(e) => {
-                  if (submitting) { e.preventDefault(); e.stopPropagation(); }
-                }}
-              >
-                <input
-                  id="image-upload"
-                  type="file"
-                  style={{ display: 'none' }}
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageUpload}
-                  ref={fileInputRef}
-                />
-                <p className="text-gray-600">اسحب الصور هنا أو انقر للرفع</p>
-                <p className="text-sm text-gray-500">يمكنك رفع عدة صور في المرة الواحدة</p>
-              </label>
-
-              {/* Image Preview and Reordering */}
-              <div className="space-y-2">
-                {images.map((image, index) => (
-                  <DraggableImage
-                    key={image.id}
-                    image={image}
-                    index={index}
-                    onRemove={handleRemoveImage}
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      handleDragOver(index);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleDragEnd();
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* MCQ Questions */}
           {formData.test_type === 'MCQ' && (
             <div className="questions-section">
@@ -767,11 +601,14 @@ const TestModal = ({ test, onClose, onSave }) => {
                           accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files && e.target.files[0];
-                            if (!file) return;
+                            if (!file) {
+                                updateQuestion(index, 'media', null);
+                                updateQuestion(index, 'mediaFile', null);
+                                return;
+                            };
                             const objectUrl = URL.createObjectURL(file);
-                            // Save preview URL in media and index in question object
                             updateQuestion(index, 'media', objectUrl);
-                            updateQuestion(index, 'media_index', index);
+                            updateQuestion(index, 'mediaFile', file);
                           }}
                         />
                         {question.media && (
@@ -863,6 +700,7 @@ const TestModal = ({ test, onClose, onSave }) => {
     </div>
   );
 };
+
 
 // Submissions Modal Component
 const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {

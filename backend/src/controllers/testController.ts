@@ -22,7 +22,7 @@ const unlinkAsync = promisify(fs.unlink);
 // Configure multer for image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = 'uploads/tests/';
+    const uploadDir = 'uploads/questions/';
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -32,7 +32,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, 'test-' + uniqueSuffix + ext);
+    cb(null, 'question-' + uniqueSuffix + ext);
   }
 });
 
@@ -131,45 +131,33 @@ export const upload = multerInstance;
 class TestController {
   // Admin/Teacher endpoints
   async createTest(req: AuthenticatedRequest, res: Response): Promise<void> {
-    if (!req.files || !Array.isArray(req.files)) {
-      res.status(400).json({ message: 'No files were uploaded' });
-      return;
-    }
-    
     const files = req.files as Express.Multer.File[];
-    const testData = typeof req.body === 'string' 
-      ? JSON.parse(req.body) 
-      : req.body;
-    
+    const testData = JSON.parse(req.body.testData);
+
     try {
-      // Create test first
-      const test = await testService.createTest(testData);
-      
-      // Handle image uploads if any
       if (files && files.length > 0) {
-        try {
-          const imagePaths = files.map((file, index) => ({
-            testId: test.id,
-            imagePath: file.path.replace(/\\/g, '/'), // Convert to forward slashes for consistency
-            displayOrder: index // Set display order based on array index
-          }));
-          
-          await testService.addTestImages(imagePaths);
-        } catch (error) {
-          console.error('Error saving test images:', error);
-          // Don't fail the whole request if image saving fails
+        const mediaPaths = files.map(file => file.path.replace(/\\/g, '/'));
+
+        if (testData.test_type === 'MCQ' && testData.correct_answers && testData.correct_answers.questions) {
+          testData.correct_answers.questions.forEach((question: any) => {
+            if (question.media_index !== undefined && mediaPaths[question.media_index]) {
+              question.media = mediaPaths[question.media_index];
+              delete question.media_index;
+            }
+          });
         }
       }
-      
-      // Refresh test with images and return
+
+      const test = await testService.createTest(testData);
+
       const updatedTest = await testService.getTestById(test.id);
       res.status(201).json({ test: updatedTest });
     } catch (error) {
       console.error('Error creating test:', error);
       // Clean up uploaded files if there was an error
-      if (req.files && Array.isArray(req.files)) {
+      if (files && Array.isArray(files)) {
         await Promise.all(
-          (req.files as Express.Multer.File[]).map(file => 
+          files.map(file =>
             unlinkAsync(file.path).catch(console.error)
           )
         );
