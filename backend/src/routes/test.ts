@@ -25,6 +25,7 @@ router.put('/tests/:id',
 );
 router.delete('/tests/:id', authenticateToken, requireAdmin, testController.deleteTest);
 router.patch('/tests/:id/view-permission', authenticateToken, requireAdmin, testController.updateViewPermission);
+router.patch('/tests/:id/show-grade-outside', authenticateToken, requireAdmin, testController.updateShowGradeOutside);
 router.get('/tests/:id/submissions', authenticateToken, requireAdmin, testController.getTestSubmissions);
 router.patch('/submissions/:id/grade', authenticateToken, requireAdmin, testController.gradeSubmission);
 // Admin manual per-question grading

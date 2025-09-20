@@ -337,32 +337,47 @@ class TestController {
     }
   }
 
-  async updateViewPermission(req: AuthenticatedRequest, res: Response): Promise<void> {
+  async updateViewPermission(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
       const { id } = req.params;
-      if (!id) {
-        res.status(400).json({ message: 'Test ID is required' });
-        return;
-      }
-      
       const { view_permission } = req.body;
-      const testId = parseInt(id, 10);
       
-      if (isNaN(testId)) {
-        res.status(400).json({ message: 'Invalid test ID' });
-        return;
+      if (typeof view_permission !== 'boolean') {
+        return res.status(400).json({ message: 'view_permission is required and must be a boolean' });
       }
-
-      const test = await testService.updateViewPermission(testId, view_permission);
-      if (!test) {
-        res.status(404).json({ message: 'Test not found' });
-        return;
+      
+      const updatedTest = await testService.updateViewPermission(Number(id), view_permission);
+      
+      if (!updatedTest) {
+        return res.status(404).json({ message: 'Test not found' });
       }
-
-      res.json({ test });
+      
+      return res.json({ test: updatedTest });
     } catch (error) {
-      console.error('Error updating view permission:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      console.error('Error updating test view permission:', error);
+      return res.status(500).json({ message: 'Error updating test view permission' });
+    }
+  }
+
+  async updateShowGradeOutside(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const { id } = req.params;
+      const { show_grade_outside } = req.body;
+      
+      if (typeof show_grade_outside !== 'boolean') {
+        return res.status(400).json({ message: 'show_grade_outside is required and must be a boolean' });
+      }
+      
+      const updatedTest = await testService.updateTest(Number(id), { show_grade_outside });
+      
+      if (!updatedTest) {
+        return res.status(404).json({ message: 'Test not found' });
+      }
+      
+      return res.json({ test: updatedTest });
+    } catch (error) {
+      console.error('Error updating show_grade_outside:', error);
+      return res.status(500).json({ message: 'Error updating show_grade_outside setting' });
     }
   }
 
