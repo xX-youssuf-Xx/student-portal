@@ -229,9 +229,19 @@ class TestController {
       ? req.files as Express.Multer.File[] 
       : [];
       
-    const testData = typeof req.body === 'string' 
-      ? JSON.parse(req.body) 
-      : req.body;
+    // Handle both JSON and form-data requests
+    let testData;
+    if (req.body.testData) {
+      // Handle form-data with testData field
+      testData = typeof req.body.testData === 'string' 
+        ? JSON.parse(req.body.testData)
+        : req.body.testData;
+    } else {
+      // Handle raw JSON or other formats
+      testData = typeof req.body === 'string' 
+        ? JSON.parse(req.body) 
+        : req.body;
+    }
       
     const { id } = req.params;
     if (!id) {
