@@ -481,7 +481,7 @@ const TestResult = () => {
                     : 0;
                 return (
                   <p style={{ marginTop: 8 }}>
-                    <strong>الدرجة:</strong> {stats.correct} من {stats.total} —{" "}
+                    <strong>الدرجة:</strong>  {"( "} {stats.correct} من {stats.total} {" )"} — {"  "}
                     {pct}%
                   </p>
                 );
@@ -519,38 +519,6 @@ const TestResult = () => {
                     >
                       {rank} / {totalStudents}
                     </span>
-                  </div>
-                  <div
-                    className="rank-progress"
-                    style={{
-                      height: "8px",
-                      backgroundColor: "#e9ecef",
-                      borderRadius: "4px",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      className="rank-progress-bar"
-                      style={{
-                        width: `${Math.max(
-                          5,
-                          (1 - rank / totalStudents) * 100
-                        )}%`,
-                        height: "100%",
-                        backgroundColor: "#1a73e8",
-                        transition: "width 0.3s ease-in-out",
-                      }}
-                    ></div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.85em",
-                      color: "#6c757d",
-                      marginTop: "6px",
-                      textAlign: "left",
-                    }}
-                  >
-                    الترتيب النسبي بين جميع الطلاب في نفس المجموعة
                   </div>
                 </div>
               )}
