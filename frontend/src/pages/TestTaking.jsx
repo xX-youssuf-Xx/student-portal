@@ -343,22 +343,26 @@ const TestTaking = () => {
         }
       }
 
-      // Initialize answers based on test type
-      // If submission exists with saved answers, restore them, otherwise initialize empty
-      if (submissionMeta && submissionMeta.id) {
-        // Use answers from start payload if available; avoid extra /result request
+      // Initialize answers: prefer localStorage if present, otherwise use submission, otherwise empty
+      const saved = localStorage.getItem(`test_${testId}_answers`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          console.debug("[INIT] restoring answers from localStorage", parsed);
+          setAnswers(parsed);
+        } catch (e) {
+          console.warn("[INIT] failed to parse saved answers", e);
+        }
+      } else if (submissionMeta && submissionMeta.id) {
         const raw = submissionMeta.answers;
+        console.debug("[INIT] restoring answers from submission", raw);
         if (raw && Object.keys(raw).length > 0) {
           setAnswers(typeof raw === "string" ? JSON.parse(raw) : raw);
         } else {
-          setAnswers(
-            testData.test_type === "MCQ" ? { answers: [] } : { answers: {} }
-          );
+          setAnswers(testData.test_type === "MCQ" ? { answers: [] } : { answers: {} });
         }
       } else {
-        setAnswers(
-          testData.test_type === "MCQ" ? { answers: [] } : { answers: {} }
-        );
+        setAnswers(testData.test_type === "MCQ" ? { answers: [] } : { answers: {} });
       }
     } catch (error) {
       console.error("Error fetching test:", error);
