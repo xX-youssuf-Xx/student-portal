@@ -4,8 +4,7 @@ import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
-// Public routes
-router.get('/tests/:id/submissions/rank', testController.getStudentRank);
+router.get('/tests/:id/submissions/rank', authenticateToken, testController.getStudentRank);
 
 // Admin/Teacher routes (protected)
 router.post('/tests', 
@@ -62,7 +61,6 @@ router.patch(
   requireAdmin,
   testController.updateBubbleAnswers
 );
-
 
 // Student routes (protected)
 router.get('/available-tests', authenticateToken, testController.getAvailableTests);
