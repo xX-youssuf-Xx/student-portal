@@ -403,16 +403,27 @@ const TestResult = () => {
                   );
                 })()}
               
-              {rank !== null && (
-                <div className="rank-display">
-                  <span className="rank-value">
-                    ترتيبك: {rank} من {totalStudents}
-                  </span>
-                  <div className="rank-progress">
+              {rank !== null && rank > 0 && (
+                <div className="rank-display" style={{ marginTop: '12px', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 'bold', color: '#2c3e50' }}>الترتيب:</span>
+                    <span style={{ fontWeight: 'bold', fontSize: '1.2em', color: '#1a73e8' }}>
+                      {rank} / {totalStudents}
+                    </span>
+                  </div>
+                  <div className="rank-progress" style={{ height: '8px', backgroundColor: '#e9ecef', borderRadius: '4px', overflow: 'hidden' }}>
                     <div 
                       className="rank-progress-bar" 
-                      style={{ width: `${(rank / totalStudents) * 100}%` }}
+                      style={{ 
+                        width: `${Math.max(5, (1 - (rank / totalStudents)) * 100}%`,
+                        height: '100%',
+                        backgroundColor: '#1a73e8',
+                        transition: 'width 0.3s ease-in-out'
+                      }}
                     ></div>
+                  </div>
+                  <div style={{ fontSize: '0.85em', color: '#6c757d', marginTop: '6px', textAlign: 'left' }}>
+                    الترتيب النسبي بين جميع الطلاب في نفس المجموعة
                   </div>
                 </div>
               )}

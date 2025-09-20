@@ -1696,16 +1696,42 @@ class TestService {
     return { header, rows: outRows };
   }
 
-  // Get student's rank for a specific test
+  // Get student's rank across all tests in the same test group
   async getStudentRank(testId: number, studentId: number): Promise<{ rank: number; total: number; score: number | null }> {
     try {
-      // First, get all submissions for this test to calculate rank
-      const submissions = await database.query(
-        `SELECT student_id, score FROM test_answers 
-         WHERE test_id = $1 AND score IS NOT NULL 
-         ORDER BY score DESC`, 
+      // First, get the test to find its test_group
+      const testResult = await database.query(
+        'SELECT test_group FROM tests WHERE id = $1',
         [testId]
       );
+      
+      if (testResult.rows.length === 0) {
+        return { rank: -1, total: 0, score: null };
+      }
+      
+      const testGroup = testResult.rows[0].test_group;
+      
+      // Get all submissions for tests in the same group (or just this test if no group)
+      let query = `
+        SELECT ta.student_id, ta.score, t.test_group 
+        FROM test_answers ta
+        JOIN tests t ON ta.test_id = t.id
+        WHERE ta.score IS NOT NULL
+      `;
+      
+      const queryParams: any[] = [];
+      
+      if (testGroup !== null) {
+        query += ` AND t.test_group = $1`;
+        queryParams.push(testGroup);
+      } else {
+        query += ` AND t.id = $1`;
+        queryParams.push(testId);
+      }
+      
+      query += ` ORDER BY ta.score DESC`;
+      
+      const submissions = await database.query(query, queryParams);
 
       if (submissions.rows.length === 0) {
         return { rank: -1, total: 0, score: null };
@@ -1722,14 +1748,18 @@ class TestService {
       let rank = 1;
       let prevScore: number | null = null;
       let currentRank = 1;
+      let found = false;
 
-      for (const row of submissions.rows) {
+      for (let i = 0; i < submissions.rows.length; i++) {
+        const row = submissions.rows[i];
         const score = parseFloat(row.score);
+        
         if (prevScore !== null && score !== prevScore) {
-          currentRank = rank;
+          currentRank = i + 1; // 1-based rank
         }
         
         if (row.student_id === studentId) {
+          found = true;
           return {
             rank: currentRank,
             total: submissions.rows.length,
@@ -1737,7 +1767,6 @@ class TestService {
           };
         }
         
-        rank++;
         prevScore = score;
       }
 

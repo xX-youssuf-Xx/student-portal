@@ -71,7 +71,7 @@ const TestManagement = () => {
 
   const toggleShowGradeOutside = async (testId, currentValue) => {
     try {
-      await axios.patch(`/tests/${testId}`, {
+      await axios.patch(`/tests/${testId}/show-grade-outside`, {
         show_grade_outside: !currentValue
       });
       fetchTests();
@@ -334,7 +334,7 @@ const TestModal = ({ test, onClose, onSave }) => {
     end_time: test?.end_time ? isoToDatetimeLocalPreserve(test.end_time) : '',
     duration_minutes: test?.duration_minutes || '',
     view_type: test?.view_type || 'IMMEDIATE',
-    show_grade_outside: typeof test?.show_grade_outside === 'boolean' ? test.show_grade_outside : (test?.view_type === 'IMMEDIATE'),
+    show_grade_outside: false, // Always default to false
     test_group: (typeof test?.test_group === 'number' ? String(test.test_group) : ''),
     questions: test?.correct_answers?.questions || [],
     bubbleAnswers: test?.correct_answers?.answers || {}
@@ -632,27 +632,7 @@ const TestModal = ({ test, onClose, onSave }) => {
               </select>
             </div>
 
-        <div className="form-group">
-          <label>إظهار الدرجة من الخارج</label>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <label>
-              <input
-                type="radio"
-                name="show_grade_outside"
-                checked={!!formData.show_grade_outside}
-                onChange={() => setFormData(prev => ({ ...prev, show_grade_outside: true }))}
-              /> نعم
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="show_grade_outside"
-                checked={!formData.show_grade_outside}
-                onChange={() => setFormData(prev => ({ ...prev, show_grade_outside: false }))}
-              /> لا
-            </label>
-          </div>
-        </div>
+        {/* Removed show_grade_outside radio buttons - now controlled by toggle on test card */}
 
         <div className="form-group">
           <label>مجموعة الاختبار (للترتيب الموحد)</label>
