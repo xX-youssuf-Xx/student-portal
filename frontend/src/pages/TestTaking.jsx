@@ -16,7 +16,18 @@ const TestTaking = () => {
   const [answers, setAnswers] = useState(() => {
     // Load answers from localStorage if available
     const saved = localStorage.getItem(`test_${testId}_answers`);
-    return saved ? JSON.parse(saved) : {};
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        console.debug("[ANSWERS_INIT] loaded from localStorage", { testId, parsed });
+        return parsed;
+      } catch (e) {
+        console.warn("[ANSWERS_INIT] failed to parse from localStorage", e);
+        return {};
+      }
+    }
+    console.debug("[ANSWERS_INIT] no saved answers in localStorage", { testId });
+    return {};
   });
   const [timeLeft, setTimeLeft] = useState(() => {
     // Load timeLeft from localStorage if available, or default to null
@@ -52,11 +63,12 @@ const TestTaking = () => {
 
   // Save answers to localStorage whenever they change
  useEffect(() => {
-     try {
-       localStorage.setItem(`test_${testId}_answers`, JSON.stringify(answers || {}));
-     } catch (err) {
-       console.warn("Could not save answers to localStorage", err);
-     }
+    try {
+      console.debug("[ANSWERS_SAVE] saving to localStorage", { testId, answers });
+      localStorage.setItem(`test_${testId}_answers`, JSON.stringify(answers || {}));
+    } catch (err) {
+      console.error("[ANSWERS_SAVE] failed", err);
+    }
    }, [answers, testId]);
 
   // Save timeLeft to localStorage every second
@@ -398,7 +410,8 @@ const TestTaking = () => {
         setSubmitted(true);
         setShowBubblePanel(false);
         // After submission: try to fetch student's rank (students are authorized)
-        localStorage.removeItem(`test_${testId}_answers`);
+        console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
+  localStorage.removeItem(`test_${testId}_answers`);
         localStorage.removeItem(`test_${testId}_time`);
         if (
           test.test_type === "PHYSICAL_SHEET" &&
@@ -424,7 +437,8 @@ const TestTaking = () => {
         }
       } else {
         setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
-        localStorage.removeItem(`test_${testId}_answers`);
+        console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
+  localStorage.removeItem(`test_${testId}_answers`);
         localStorage.removeItem(`test_${testId}_time`);
         // give user a short moment to see toast
         setTimeout(() => navigate("/student/dashboard"), 800);
@@ -490,7 +504,8 @@ const TestTaking = () => {
         ) {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
-          localStorage.removeItem(`test_${testId}_answers`);
+          console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
+  localStorage.removeItem(`test_${testId}_answers`);
           localStorage.removeItem(`test_${testId}_time`);
         } else {
           try {
@@ -509,7 +524,8 @@ const TestTaking = () => {
         }
       } else {
         setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
-        localStorage.removeItem(`test_${testId}_answers`);
+        console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
+  localStorage.removeItem(`test_${testId}_answers`);
         localStorage.removeItem(`test_${testId}_time`);
         setTimeout(() => navigate("/student/dashboard"), 800);
       }
@@ -523,6 +539,7 @@ const TestTaking = () => {
 
   const handleMCQAnswer = (questionId, answer) => {
     if (submitting || submitted) return;
+    console.debug("[MCQ_SELECT]", { questionId, answer });
     setAnswers((prev) => {
       const prevAnswers = Array.isArray(prev?.answers) ? prev.answers : [];
       return {
@@ -537,6 +554,7 @@ const TestTaking = () => {
 
   const handleBubbleSheetAnswer = (questionNumber, answer) => {
     if (submitting || submitted) return;
+    console.debug("[BUBBLE_SELECT]", { questionNumber, answer });
     setAnswers((prev) => ({
       ...prev,
       answers: {
