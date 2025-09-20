@@ -1130,6 +1130,19 @@ const TestTaking = () => {
              const image = test.images?.find(img => img.display_order === question.media_index);
              const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
 
+              console.debug("[Q_RENDER]", {
+                 qIndex: index,
+                 questionId: question.id,
+                 mediaIndex: question.media_index,
+                 images: test.images?.map(img => ({
+                   id: img.id,
+                   display_order: img.display_order,
+                   path: img.image_path
+                 })),
+                 matchedImage: image ? { display_order: image.display_order, path: image.image_path } : null,
+                 imageUrl
+               });
+
             return (
               <div
                 key={question.id || index}
