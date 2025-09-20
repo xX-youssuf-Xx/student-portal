@@ -815,6 +815,10 @@ const TestTaking = () => {
           test.questions.map((question, index) => {
             const isMCQ = question.type === 'MCQ' && Array.isArray(question.options);
             const selected = (answers?.answers || []).find(a => a.id === question.id)?.answer;
+            
+            const image = test.images && test.images.find(img => img.display_order === question.media_index);
+            const imageUrl = image ? `${window.location.origin}/${image.image_path.replace(/\\/g, '/')}` : null;
+
             return (
               <div
                 key={question.id || index}
@@ -846,10 +850,15 @@ const TestTaking = () => {
 
                 {/* Question text and media */}
                 <div style={{ paddingTop: 24 }}>
+                  {imageUrl && (
+                    <div className="question-media" style={{ marginBottom: 8 }}>
+                      <img src={imageUrl} alt="سؤال" style={{ maxWidth: '100%', borderRadius: 6 }} />
+                    </div>
+                  )}
                   <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10, lineHeight: 1.6 }}>
                     {question.text}
                   </div>
-                  {question.media && (
+                  {question.media && !imageUrl && ( // Fallback for old structure
                     <div className="question-media" style={{ marginTop: 8 }}>
                       {String(question.media).endsWith('.mp4') ? (
                         <video controls style={{ maxWidth: '100%', borderRadius: 6 }}>

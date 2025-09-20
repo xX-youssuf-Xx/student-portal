@@ -22,7 +22,7 @@ const unlinkAsync = promisify(fs.unlink);
 // Configure multer for image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = 'uploads/questions/';
+    const uploadDir = 'uploads/tests/';
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -32,7 +32,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, 'question-' + uniqueSuffix + ext);
+    cb(null, 'test-' + uniqueSuffix + ext);
   }
 });
 
@@ -90,8 +90,8 @@ const handleArrayUpload = (req: Request, res: Response, next: NextFunction) => {
       
       // Sort the fields to maintain order
       imageFields.sort((a, b) => {
-        const aMatch = a.match(/\[(\d+)\]/);
-        const bMatch = b.match(/\[(\d+)\]/);
+        const aMatch = a.match(/[\[](\d+)[\]]/);
+        const bMatch = b.match(/[\[](\d+)[\]]/);
         const aNum = aMatch ? parseInt(aMatch[1] || '0', 10) : 0;
         const bNum = bMatch ? parseInt(bMatch[1] || '0', 10) : 0;
         return aNum - bNum;
@@ -118,8 +118,8 @@ const handleArrayUpload = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Create multer instance with configuration
-const multerInstance = multer({ 
-  storage, 
+const multerInstance = multer({
+  storage,
   fileFilter: imageFilter,
   limits: { fileSize: 1024 * 1024 * 1024 } // 1GB limit
 });
@@ -132,24 +132,31 @@ class TestController {
   // Admin/Teacher endpoints
   async createTest(req: AuthenticatedRequest, res: Response): Promise<void> {
     const files = req.files as Express.Multer.File[];
-    const testData = JSON.parse(req.body.testData);
-
+    const testData = typeof req.body.testData === 'string' 
+      ? JSON.parse(req.body.testData) 
+      : req.body;
+    
     try {
+      // Create test first
+      const test = await testService.createTest(testData);
+      
+      // Handle image uploads if any
       if (files && files.length > 0) {
-        const mediaPaths = files.map(file => file.path.replace(/\\/g, '/'));
-
-        if (testData.test_type === 'MCQ' && testData.correct_answers && testData.correct_answers.questions) {
-          testData.correct_answers.questions.forEach((question: any) => {
-            if (question.media_index !== undefined && mediaPaths[question.media_index]) {
-              question.media = mediaPaths[question.media_index];
-              delete question.media_index;
-            }
-          });
+        try {
+          const imagePaths = files.map((file, index) => ({
+            testId: test.id,
+            imagePath: file.path.replace(/\/g, '/'), // Convert to forward slashes for consistency
+            displayOrder: index // Set display order based on array index
+          }));
+          
+          await testService.addTestImages(imagePaths);
+        } catch (error) {
+          console.error('Error saving test images:', error);
+          // Don't fail the whole request if image saving fails
         }
       }
-
-      const test = await testService.createTest(testData);
-
+      
+      // Refresh test with images and return
       const updatedTest = await testService.getTestById(test.id);
       res.status(201).json({ test: updatedTest });
     } catch (error) {
@@ -157,7 +164,7 @@ class TestController {
       // Clean up uploaded files if there was an error
       if (files && Array.isArray(files)) {
         await Promise.all(
-          files.map(file =>
+          (files as Express.Multer.File[]).map(file => 
             unlinkAsync(file.path).catch(console.error)
           )
         );
@@ -206,7 +213,7 @@ class TestController {
           // Convert relative paths to absolute URLs if needed
           image_url: img.image_path.startsWith('http') 
             ? img.image_path 
-            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\/g, '/')}`
         }))
       };
 
@@ -250,7 +257,7 @@ class TestController {
           // Add new images
           const imagePaths = files.map((file, index) => ({
             testId,
-            imagePath: file.path.replace(/\\/g, '/'),
+            imagePath: file.path.replace(/\/g, '/'),
             displayOrder: index
           }));
           
@@ -286,7 +293,7 @@ class TestController {
           ...img,
           image_url: img.image_path.startsWith('http') 
             ? img.image_path 
-            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\\/g, '/')}`
+            : `${process.env.API_BASE_URL || 'https://studentportal.egypt-tech.com'}/${img.image_path.replace(/\/g, '/')}`
         }))
       } : null;
       
