@@ -516,9 +516,9 @@ class TestService {
       // Ignore unknown fields to prevent SQL errors
       if (!allowedFields.has(mappedKey)) return;
       
-      // Validate test_type to prevent empty strings
-      if (mappedKey === 'test_type' && (value === '' || value === null)) {
-        return; // Skip updating test_type if it's an empty string or null
+      // Validate enum fields to prevent empty strings
+      if (['test_type', 'student_group', 'grade', 'view_type'].includes(mappedKey) && (value === '' || value === null)) {
+        return; // Skip updating enum fields if they're empty strings or null
       }
 
       if (mappedKey === 'view_permission' && testData.view_type === 'IMMEDIATE') {
