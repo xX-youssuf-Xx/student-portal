@@ -35,8 +35,10 @@ const TestResult = () => {
   };
 
   const fetchRank = async () => {
+    if (!user?.id) return; // Skip if user is not loaded yet
+    
     try {
-      const response = await axios.get(`/tests/${testId}/submissions/rank`);
+      const response = await axios.get(`/tests/${testId}/submissions/rank?studentId=${user.id}`);
       setRank(response.data.rank);
       setTotalStudents(response.data.totalStudents);
     } catch (error) {
