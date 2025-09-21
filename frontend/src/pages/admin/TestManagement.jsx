@@ -981,22 +981,6 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
         <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
-              {test.test_type === 'PHYSICAL_SHEET' && (
-                <>
-                  <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
-                    تصحيح جماعي للبابل
-                  </button>
-                  <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
-                    إضافة طلاب للاختبار
-                  </button>
-                </>
-              )}
-              {(true) && (
-                <button className="btn-primary" onClick={handleRegradeAll}>
-                  إعادة تصحيح الكل
-                </button>
-              )}
-            </div>
             <div style={{ width: '300px' }}>
               <input
                 type="text"
@@ -1012,6 +996,22 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                   direction: 'rtl'
                 }}
               />
+            </div>
+              {test.test_type === 'PHYSICAL_SHEET' && (
+                <>
+                  <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
+                    تصحيح جماعي للبابل
+                  </button>
+                  <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
+                    إضافة طلاب للاختبار
+                  </button>
+                </>
+              )}
+              {(test.test_type === 'MCQ' || test.test_type === 'BUBBLE_SHEET') && (
+                <button className="btn-primary" onClick={handleRegradeAll}>
+                  إعادة تصحيح الكل
+                </button>
+              )}
             </div>
           </div>
           <div style={{ color: '#666', fontSize: '14px', textAlign: 'right' }}>
