@@ -991,7 +991,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                   </button>
                 </>
               )}
-              {(test.test_type === 'MCQ' || test.test_type === 'BUBBLE_SHEET') && (
+              {(true) && (
                 <button className="btn-primary" onClick={handleRegradeAll}>
                   إعادة تصحيح الكل
                 </button>
