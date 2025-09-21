@@ -346,7 +346,7 @@ const TestModal = ({ test, onClose, onSave }) => {
     duration_minutes: test?.duration_minutes || '',
     view_type: test?.view_type || 'IMMEDIATE',
     show_grade_outside: false, // Always default to false
-    test_group: (typeof test?.test_group === 'number' ? String(test.test_group) : ''),
+    test_group: test?.test_group !== null && test?.test_group !== undefined ? String(test.test_group) : '',
     questions: test?.correct_answers?.questions || [],
     bubbleAnswers: test?.correct_answers?.answers || {}
   });
@@ -376,10 +376,15 @@ const TestModal = ({ test, onClose, onSave }) => {
         ...formData,
         questions: undefined,
         correct_answers: {
-            questions: questionsForPayload
+            questions: questionsForPayload,
+        answers: formData.test_type === 'PHYSICAL_SHEET' ? formData.bubbleAnswers : undefined
         }
       };
       
+      // Only include test_group if it has a value
+      if (testData.test_group === '') {
+        delete testData.test_group;
+      }
       delete testData.bubbleAnswers;
 
       formDataToSend.append('testData', JSON.stringify(testData));
