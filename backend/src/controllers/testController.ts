@@ -90,8 +90,8 @@ const handleArrayUpload = (req: Request, res: Response, next: NextFunction) => {
       
       // Sort the fields to maintain order
       imageFields.sort((a, b) => {
-        const aMatch = a.match(/[\[](\d+)[\]]/);
-        const bMatch = b.match(/[\[](\d+)[\]]/);
+        const aMatch = a.match(/[[\](\d+)[[\]]/);
+        const bMatch = b.match(/[[\](\d+)[[\]]/);
         const aNum = aMatch ? parseInt(aMatch[1] || '0', 10) : 0;
         const bNum = bMatch ? parseInt(bMatch[1] || '0', 10) : 0;
         return aNum - bNum;
@@ -977,6 +977,29 @@ class TestController {
       res.json({ submission: updated });
     } catch (error) {
       console.error('Error updating bubble answers:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+
+  async regradeAllSubmissions(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Test ID is required' });
+        return;
+      }
+      const testId = parseInt(id, 10);
+      if (isNaN(testId)) {
+        res.status(400).json({ message: 'Invalid test ID' });
+        return;
+      }
+
+      // Fire and forget, don't await
+      testService.regradeAllSubmissions(testId);
+
+      res.status(202).json({ message: 'Regrading process started in the background.' });
+    } catch (error) {
+      console.error('Error starting regrade process:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   }

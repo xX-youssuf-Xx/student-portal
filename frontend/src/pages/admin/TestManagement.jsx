@@ -720,6 +720,18 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const [imageUrl, setImageUrl] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const handleRegradeAll = async () => {
+    if (!window.confirm('هل أنت متأكد من إعادة تصحيح جميع المشاركات؟ قد تستغرق هذه العملية بعض الوقت.')) return;
+    try {
+      await axios.post(`/tests/${test.id}/regrade-all`);
+      alert('بدأت عملية إعادة التصحيح في الخلفية. سيتم تحديث الدرجات قريباً.');
+      onClose();
+    } catch (error) {
+      console.error('Error starting regrade process:', error);
+      alert('حدث خطأ في بدء عملية إعادة التصحيح.');
+    }
+  };
+
   useEffect(() => {
     setLocalSubs(submissions || []);
   }, [submissions]);
@@ -968,16 +980,23 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
 
         <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {test.test_type === 'PHYSICAL_SHEET' && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
-                  تصحيح جماعي للبابل
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {test.test_type === 'PHYSICAL_SHEET' && (
+                <>
+                  <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
+                    تصحيح جماعي للبابل
+                  </button>
+                  <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
+                    إضافة طلاب للاختبار
+                  </button>
+                </>
+              )}
+              {(test.test_type === 'MCQ' || test.test_type === 'BUBBLE_SHEET') && (
+                <button className="btn-primary" onClick={handleRegradeAll}>
+                  إعادة تصحيح الكل
                 </button>
-                <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
-                  إضافة طلاب للاختبار
-                </button>
-              </div>
-            )}
+              )}
+            </div>
             <div style={{ width: '300px' }}>
               <input
                 type="text"

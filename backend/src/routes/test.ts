@@ -62,6 +62,8 @@ router.patch(
   testController.updateBubbleAnswers
 );
 
+router.post('/tests/:id/regrade-all', authenticateToken, requireAdmin, testController.regradeAllSubmissions);
+
 // Student routes (protected)
 router.get('/available-tests', authenticateToken, testController.getAvailableTests);
 router.get('/test-history', authenticateToken, testController.getStudentTestHistory);

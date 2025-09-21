@@ -1782,6 +1782,111 @@ class TestService {
       return { rank: -1, total: 0, score: null };
     }
   }
+
+  async regradeAllSubmissions(testId: number): Promise<void> {
+    console.log(`Starting regrading process for test ${testId}`);
+    try {
+      // Load test and validate
+      const test = await this.getTestById(testId);
+      if (!test) {
+        console.error(`Regrading failed: test ${testId} not found.`);
+        return;
+      }
+  
+      const supported = new Set(['MCQ', 'BUBBLE_SHEET', 'PHYSICAL_SHEET']);
+      if (!supported.has(test.test_type)) {
+        console.error(
+          `Regrading failed: test ${testId} type "${test.test_type}" is not supported.`
+        );
+        return;
+      }
+  
+      if (!test.correct_answers) {
+        console.error(
+          `Regrading skipped: test ${testId} has no correct_answers configured.`
+        );
+        return;
+      }
+  
+      // Parse correct_answers if it is a string
+      let parsedCorrect: any = test.correct_answers as any;
+      if (typeof parsedCorrect === 'string') {
+        try {
+          parsedCorrect = JSON.parse(parsedCorrect);
+        } catch (e) {
+          console.error(
+            `Regrading failed: invalid correct_answers JSON for test ${testId}.`,
+            e
+          );
+          return;
+        }
+      }
+  
+      // Fetch all submissions
+      const submissions = await this.getTestSubmissions(testId);
+      if (!submissions || submissions.length === 0) {
+        console.log(`No submissions found for test ${testId}. Nothing to regrade.`);
+        return;
+      }
+  
+      let updatedCount = 0;
+  
+      for (const submission of submissions) {
+        try {
+          // Compute new score
+          let newScore = 0;
+  
+          if (test.test_type === 'MCQ') {
+            // Use manual grades for OPEN questions if present
+            newScore = this.computeScoreWithManual(
+              { ...test, correct_answers: parsedCorrect },
+              submission
+            );
+          } else {
+            newScore = this.calculateScore(
+              submission.answers,
+              parsedCorrect,
+              test.test_type
+            );
+          }
+  
+          const oldScore =
+            submission.score === null || submission.score === undefined
+              ? null
+              : Number(submission.score);
+  
+          const needsUpdate =
+            oldScore === null ||
+            Number(newScore) !== oldScore ||
+            submission.graded !== true;
+  
+          if (needsUpdate) {
+            const query = `
+              UPDATE test_answers 
+              SET score = $1, graded = true, updated_at = CURRENT_TIMESTAMP
+              WHERE id = $2
+            `;
+            await database.query(query, [newScore, submission.id]);
+            updatedCount++;
+          }
+        } catch (e) {
+          console.error(
+            `Failed to regrade submission ${submission.id} for test ${testId}:`,
+            e
+          );
+        }
+      }
+  
+      console.log(
+        `Successfully regraded test ${testId}. Updated ${updatedCount}/${submissions.length} submissions.`
+      );
+    } catch (error) {
+      console.error(
+        `An error occurred during the regrading process for test ${testId}:`,
+        error
+      );
+    }
+  }
 }
 
 export default new TestService();
