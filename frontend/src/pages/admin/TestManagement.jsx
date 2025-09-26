@@ -345,10 +345,12 @@ const TestModal = ({ test, onClose, onSave }) => {
     end_time: test?.end_time ? isoToDatetimeLocalPreserve(test.end_time) : '',
     duration_minutes: test?.duration_minutes || '',
     view_type: test?.view_type || 'IMMEDIATE',
-    show_grade_outside: false, // Always default to false
+    show_grade_outside: test?.show_grade_outside || false,
     test_group: test?.test_group !== null && test?.test_group !== undefined ? String(test.test_group) : '',
     questions: test?.correct_answers?.questions || [],
-    bubbleAnswers: test?.correct_answers?.answers || {}
+    bubbleAnswers: test?.correct_answers?.answers || {},
+    pdf_file: null,
+    images: test?.images || []
   });
   
   const [submitting, setSubmitting] = useState(false);
@@ -376,9 +378,13 @@ const TestModal = ({ test, onClose, onSave }) => {
         ...formData,
         questions: undefined,
         correct_answers: {
-            questions: questionsForPayload,
-        answers: formData.test_type === 'PHYSICAL_SHEET' ? formData.bubbleAnswers : undefined
-        }
+          questions: formData.test_type === 'MCQ' ? questionsForPayload : [],
+          answers: (formData.test_type === 'BUBBLE_SHEET' || formData.test_type === 'PHYSICAL_SHEET') 
+            ? formData.bubbleAnswers 
+            : undefined
+        },
+        pdf_file: formData.pdf_file,
+        images: formData.images
       };
       
       // Only include test_group if it has a value
@@ -659,6 +665,40 @@ const TestModal = ({ test, onClose, onSave }) => {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Bubble Sheet Answers and PDF Upload */}
+          {(formData.test_type === 'BUBBLE_SHEET' || formData.test_type === 'PHYSICAL_SHEET') && (
+            <div className="form-group">
+              <label>رفع ملف PDF (اختياري)</label>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={(e) => {
+                  const file = e.target.files && e.target.files[0];
+                  if (file) {
+                    setFormData(prev => ({
+                      ...prev,
+                      pdf_file: file,
+                      // Clear existing images when uploading new PDF
+                      images: []
+                    }));
+                  }
+                }}
+              />
+              {test?.pdf_file_path && !formData.pdf_file && (
+                <div style={{ marginTop: '8px' }}>
+                  <span>الملف الحالي: </span>
+                  <a 
+                    href={`${process.env.REACT_APP_API_URL || ''}${test.pdf_file_path}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    عرض الملف
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
