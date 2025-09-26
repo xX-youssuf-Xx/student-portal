@@ -349,9 +349,19 @@ const TestModal = ({ test, onClose, onSave }) => {
     test_group: test?.test_group !== null && test?.test_group !== undefined ? String(test.test_group) : '',
     questions: test?.correct_answers?.questions || [],
     bubbleAnswers: test?.correct_answers?.answers || {},
-    pdf_file: null,
-    images: test?.images || []
+    images: test?.images || [],
+    imageFiles: []
   });
+  
+  // Load existing images when test is loaded
+  useEffect(() => {
+    if (test?.images?.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        images: [...test.images].sort((a, b) => a.display_order - b.display_order)
+      }));
+    }
+  }, [test?.id]);
   
   const [submitting, setSubmitting] = useState(false);
 
@@ -383,8 +393,9 @@ const TestModal = ({ test, onClose, onSave }) => {
             ? formData.bubbleAnswers 
             : undefined
         },
-        pdf_file: formData.pdf_file,
-        images: formData.images
+        // Don't include images in the JSON, they'll be sent as multipart form data
+        images: undefined,
+        imageFiles: undefined
       };
       
       // Only include test_group if it has a value
@@ -393,11 +404,20 @@ const TestModal = ({ test, onClose, onSave }) => {
       }
       delete testData.bubbleAnswers;
 
+      // Add test data as JSON
       formDataToSend.append('testData', JSON.stringify(testData));
 
+      // Add question media files
       mediaFiles.forEach((file) => {
         formDataToSend.append('media', file);
       });
+
+      // Add test images
+      if (formData.imageFiles && formData.imageFiles.length > 0) {
+        formData.imageFiles.forEach((file, index) => {
+          formDataToSend.append('images', file);
+        });
+      }
 
       if (test) {
         await axios.put(`/tests/${test.id}`, formDataToSend, {
@@ -668,37 +688,110 @@ const TestModal = ({ test, onClose, onSave }) => {
             </div>
           )}
 
-          {/* Bubble Sheet Answers and PDF Upload */}
+          {/* Image Upload for Bubble Sheet Tests */}
           {(formData.test_type === 'BUBBLE_SHEET' || formData.test_type === 'PHYSICAL_SHEET') && (
             <div className="form-group">
-              <label>رفع ملف PDF (اختياري)</label>
+              <label>رفع صور الاختبار (اختياري)</label>
               <input
                 type="file"
-                accept=".pdf"
+                accept="image/*"
+                multiple
                 onChange={(e) => {
-                  const file = e.target.files && e.target.files[0];
-                  if (file) {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) {
                     setFormData(prev => ({
                       ...prev,
-                      pdf_file: file,
-                      // Clear existing images when uploading new PDF
-                      images: []
+                      imageFiles: [...(prev.imageFiles || []), ...files],
+                      // For preview
+                      images: [
+                        ...(prev.images || []),
+                        ...files.map((file, index) => ({
+                          id: `new-${Date.now()}-${index}`,
+                          image_path: URL.createObjectURL(file),
+                          display_order: (prev.images?.length || 0) + index
+                        }))
+                      ]
                     }));
                   }
                 }}
               />
-              {test?.pdf_file_path && !formData.pdf_file && (
-                <div style={{ marginTop: '8px' }}>
-                  <span>الملف الحالي: </span>
-                  <a 
-                    href={`${process.env.REACT_APP_API_URL || ''}${test.pdf_file_path}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                  >
-                    عرض الملف
-                  </a>
-                </div>
-              )}
+              
+              {/* Display uploaded images with reordering and delete */}
+              <div className="image-preview-container" style={{ marginTop: '10px' }}>
+                {formData.images?.map((img, index) => (
+                  <div key={img.id || index} className="image-preview-item" style={{ 
+                    position: 'relative',
+                    display: 'inline-block',
+                    margin: '5px',
+                    border: '1px solid #ddd',
+                    padding: '5px',
+                    borderRadius: '4px'
+                  }}>
+                    <img 
+                      src={img.image_path.startsWith('blob:') ? img.image_path : 
+                        `${process.env.REACT_APP_API_URL || ''}${img.image_path}`} 
+                      alt={`صفحة ${index + 1}`} 
+                      style={{ 
+                        width: '100px', 
+                        height: '140px', 
+                        objectFit: 'contain' 
+                      }} 
+                    />
+                    <div style={{ 
+                      position: 'absolute', 
+                      top: '5px', 
+                      right: '5px', 
+                      background: 'rgba(0,0,0,0.5)', 
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                    onClick={() => {
+                      // Remove the image from both preview and files
+                      const newImages = [...formData.images];
+                      newImages.splice(index, 1);
+                      
+                      setFormData(prev => ({
+                        ...prev,
+                        images: newImages,
+                        // If it's a new file (not yet saved), remove from imageFiles
+                        imageFiles: prev.imageFiles.filter((_, i) => i !== (index - (prev.images.length - newImages.length)))
+                      }));
+                    }}
+                    >
+                      ×
+                    </div>
+                    <div style={{ 
+                      position: 'absolute', 
+                      bottom: '5px', 
+                      left: '5px', 
+                      background: 'rgba(0,0,0,0.7)', 
+                      color: 'white',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontSize: '12px'
+                    }}>
+                      صفحة {index + 1}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Hidden inputs for image reordering */}
+              {formData.images?.map((img, index) => (
+                <input 
+                  key={`order-${img.id || index}`}
+                  type="hidden"
+                  name={`images[${index}]`}
+                  value={img.id}
+                />
+              ))}
             </div>
           )}
 
