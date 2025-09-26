@@ -314,6 +314,33 @@ class TestController {
     }
   }
 
+  async deleteTestImage(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Image ID is required' });
+        return;
+      }
+  
+      const imageId = parseInt(id, 10);
+      if (isNaN(imageId)) {
+        res.status(400).json({ message: 'Invalid image ID' });
+        return;
+      }
+  
+      const success = await testService.deleteTestImage(imageId);
+      if (!success) {
+        res.status(404).json({ message: 'Test image not found' });
+        return;
+      }
+  
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting test image:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+  
   async deleteTest(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;

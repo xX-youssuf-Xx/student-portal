@@ -35,7 +35,7 @@ router.get('/tests/:id/submissions/:submissionId', authenticateToken, requireAdm
 router.patch('/submissions/:id/manual-grades', authenticateToken, requireAdmin, testController.setManualGrades);
 // Admin: delete a submission and associated files
 router.delete('/submissions/:id', authenticateToken, requireAdmin, testController.deleteSubmission);
-
+router.delete('/tests/images/:id', authenticateToken, requireAdmin, testController.deleteTestImage);
 // Admin: Batch grade physical bubble sheets
 // Expect: multipart/form-data with field 'n_questions', 'students' (JSON array of student IDs in order),
 // and image files (named arbitrarily, the order will be inferred from filename numbers or upload order).

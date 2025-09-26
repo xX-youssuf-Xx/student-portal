@@ -364,16 +364,28 @@ class TestService {
     `;
     
     const result = await database.query(query);
-    // Format timestamps to preserve wall-time when serializing and include UTC/ms
-    return (result.rows || []).map(r => ({
-      ...r,
-      start_time: formatLocal(r.start_time),
-      end_time: formatLocal(r.end_time),
-      start_time_utc: formatUtc(r.start_time),
-      end_time_utc: formatUtc(r.end_time),
-      start_time_ms: formatMs(r.start_time),
-      end_time_ms: formatMs(r.end_time)
-    }));
+    const tests = result.rows || [];
+  
+    // For each test, fetch images
+    const withImages = await Promise.all(
+      tests.map(async (r) => {
+        const formatted = {
+          ...r,
+          start_time: formatLocal(r.start_time),
+          end_time: formatLocal(r.end_time),
+          start_time_utc: formatUtc(r.start_time),
+          end_time_utc: formatUtc(r.end_time),
+          start_time_ms: formatMs(r.start_time),
+          end_time_ms: formatMs(r.end_time),
+        };
+  
+        const images = await this.getTestImages(r.id);
+  
+        return { ...formatted, images };
+      })
+    );
+  
+    return withImages;
   }
 
   async getTestById(testId: number): Promise<(Test & { images?: Array<{ id: number; image_path: string; display_order: number }> }) | null> {
