@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
-import { Button } from 'react-bootstrap';
+import { Button, Modal } from 'react-bootstrap';
+import { FaEye, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import './TestManagement.css';
 
 const TestManagement = () => {
@@ -13,6 +14,9 @@ const TestManagement = () => {
   const [selectedTest, setSelectedTest] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [currentTest, setCurrentTest] = useState(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     fetchTests();
@@ -56,6 +60,37 @@ const TestManagement = () => {
       console.error('Error deleting test:', error);
       alert('حدث خطأ في حذف الاختبار');
     }
+  };
+
+  const deleteImage = async (imageId) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذه الصورة؟')) return;
+    
+    try {
+      await axios.delete(`/tests/images/${imageId}`);
+      // Refresh tests to update the UI
+      fetchTests();
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      alert('حدث خطأ في حذف الصورة');
+    }
+  };
+
+  const openImageModal = (test) => {
+    setCurrentTest(test);
+    setCurrentImageIndex(0);
+    setShowImageModal(true);
+  };
+
+  const handleNextImage = () => {
+    setCurrentImageIndex(prev => 
+      prev < currentTest.images.length - 1 ? prev + 1 : 0
+    );
+  };
+
+  const handlePrevImage = () => {
+    setCurrentImageIndex(prev => 
+      prev > 0 ? prev - 1 : currentTest.images.length - 1
+    );
   };
 
   const toggleViewPermission = async (testId, currentPermission) => {
@@ -181,6 +216,21 @@ const TestManagement = () => {
                   <span className="stat-number">{test.graded_count || 0}</span>
                   <span className="stat-label">مُصحح</span>
                 </div>
+                {test.images && test.images.length > 0 && (
+                  <div className="stat">
+                    <button 
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openImageModal(test);
+                      }}
+                      title="عرض الأسئلة"
+                    >
+                      <FaEye className="me-1" />
+                      {test.images.length} {test.images.length === 1 ? 'صورة' : 'صور'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="test-controls">
@@ -269,6 +319,80 @@ const TestManagement = () => {
           tests={tests}
           onClose={() => setShowExportModal(false)}
         />
+      )}
+
+      {/* Image Viewer Modal */}
+      {currentTest && (
+        <Modal 
+          show={showImageModal} 
+          onHide={() => setShowImageModal(false)}
+          size="lg"
+          centered
+          className="image-viewer-modal"
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>{currentTest.title} - معاينة الأسئلة</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="text-center">
+            <div className="image-viewer-container">
+              <button 
+                className="nav-arrow left-arrow" 
+                onClick={handlePrevImage}
+                disabled={currentTest.images.length <= 1}
+              >
+                <FaChevronLeft size={24} />
+              </button>
+              
+              <div className="image-container">
+                {currentTest.images.length > 0 ? (
+                  <>
+                    <img 
+                      src={`/${currentTest.images[currentImageIndex].image_path}`} 
+                      alt={`صفحة ${currentImageIndex + 1}`} 
+                      className="img-fluid"
+                    />
+                    <div className="image-counter">
+                      {currentImageIndex + 1} / {currentTest.images.length}
+                    </div>
+                  </>
+                ) : (
+                  <div className="no-images">لا توجد صور متاحة</div>
+                )}
+              </div>
+              
+              <button 
+                className="nav-arrow right-arrow" 
+                onClick={handleNextImage}
+                disabled={currentTest.images.length <= 1}
+              >
+                <FaChevronRight size={24} />
+              </button>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <div className="d-flex justify-content-between w-100">
+              <div>
+                {currentTest.images.length > 0 && (
+                  <button 
+                    className="btn btn-danger"
+                    onClick={() => {
+                      deleteImage(currentTest.images[currentImageIndex].id);
+                      setShowImageModal(false);
+                    }}
+                  >
+                    <FaTimes className="me-1" /> حذف الصورة الحالية
+                  </button>
+                )}
+              </div>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setShowImageModal(false)}
+              >
+                إغلاق
+              </button>
+            </div>
+          </Modal.Footer>
+        </Modal>
       )}
     </div>
   );
