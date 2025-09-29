@@ -89,113 +89,17 @@ const TestTaking = () => {
     fetchTest();
   }, [testId]);
 
-  // Handle test submission when time runs out (only after timer is initialized)
+  // Handle test submission when time runs out
   useEffect(() => {
-    if (!timerReady) return;
     if (timeLeft > 0) {
       const timer = setTimeout(() => {
         setTimeLeft(timeLeft - 1);
       }, 1000);
       return () => clearTimeout(timer);
     } else if (timeLeft === 0) {
-      // Only auto-submit when allowed. This prevents immediate auto-submit when server says remaining <= 0
-      if (allowImmediateAutoSubmit) {
-        handleAutoSubmit();
-      } else {
-        console.warn(
-          "[TestTaking] timeLeft is 0 but immediate auto-submit is disabled (likely set from server)."
-        );
-      }
-    }
-  }, [timeLeft, timerReady]);
-
-  // No temporary visible grace timer; prevent auto-submit via timerReady gating only
-
-  useEffect(() => {
-    // Prevent context menu (right-click)
-    const handleContextMenu = (e) => {
-      // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U, PrintScreen, etc.
-      if (
-        e.key === "F12" ||
-        e.key === "PrintScreen" ||
-        (e.ctrlKey && e.shiftKey && e.key === "I") ||
-        (e.ctrlKey && e.shiftKey && e.key === "J") ||
-        (e.ctrlKey && e.key === "U") ||
-        (e.ctrlKey && e.key === "S") ||
-        (e.ctrlKey && e.key === "P") ||
-        (e.metaKey && e.shiftKey && e.key === "4") // Cmd+Shift+4 (Mac screenshot)
-      ) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    // Prevent keyboard shortcuts
-    const handleKeyDown = (e) => {
-      if (
-        e.key === "F12" ||
-        e.key === "PrintScreen" ||
-        (e.ctrlKey && e.shiftKey && e.key === "I") ||
-        (e.ctrlKey && e.shiftKey && e.key === "J") ||
-        (e.ctrlKey && e.key === "U") ||
-        (e.ctrlKey && e.key === "S") ||
-        (e.ctrlKey && e.key === "P") ||
-        (e.metaKey && e.shiftKey && e.key === "4")
-      ) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    // Track visibility changes (for detecting screenshots and app switching)
-    let visibilityChangeCount = 0;
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        visibilityChangeCount++;
-        if (visibilityChangeCount > 2) {
-          // After multiple visibility changes, assume screenshot attempt
-          setToast({
-            type: "error",
-            message:
-              "تم اكتشاف محاولة أخذ لقطة شاشة. سيتم إنهاء الاختبار بعد 3 محاولات.",
-          });
-          if (visibilityChangeCount >= 3 && timerReady && test) {
-            handleAutoSubmit();
-          }
-        } else {
-          setToast({
-            type: "info",
-            message: "يُرجى عدم محاولة أخذ لقطة شاشة أثناء الاختبار.",
-          });
-        }
-      }
-    };
-    // Add event listeners (note: we intentionally do NOT show a beforeunload prompt on refresh)
-    document.addEventListener("contextmenu", handleContextMenu);
-    document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Cleanup
-    return () => {
-      document.removeEventListener("contextmenu", handleContextMenu);
-      document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
-
-  // Keep a ref of previous timeLeft to detect transition from >0 to 0
-  const prevTimeLeftRef = useRef(timeLeft);
-
-  // When timer naturally transitions from >0 to 0, auto-submit immediately
-  useEffect(() => {
-    if (timerReady && prevTimeLeftRef.current > 0 && timeLeft === 0) {
-      console.debug(
-        "[TestTaking] timer reached 0 via countdown — auto-submitting"
-      );
       handleAutoSubmit();
     }
-    prevTimeLeftRef.current = timeLeft;
-  }, [timeLeft, timerReady]);
+  }, [timeLeft]);
 
   // If server-set timeLeft was 0 and after grace period allowImmediateAutoSubmit flips true, submit
   useEffect(() => {
