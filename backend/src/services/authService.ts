@@ -19,7 +19,7 @@ class AuthService {
   }
 
   generateToken(payload: any): string {
-    return jwt.sign(payload, this.JWT_SECRET, { expiresIn: '24h' });
+    return jwt.sign(payload, this.JWT_SECRET, { expiresIn: '30d' });
   }
 
   verifyToken(token: string): any {
