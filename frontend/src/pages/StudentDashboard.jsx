@@ -261,11 +261,6 @@ const StudentDashboard = () => {
                       )}
                     </div>
                     <div className="test-actions">
-                      {test.is_submitted ? (
-                        <button className="btn-completed" disabled>
-                          ✓ تم التقديم
-                        </button>
-                      ) : (
                         <button 
                           className="btn-start-test"
                           onClick={() => startTest(test.id)}
@@ -273,7 +268,7 @@ const StudentDashboard = () => {
                         >
                           {new Date() > new Date(test.end_time) ? 'انتهى وقت الاختبار' : '🚀 بدء الاختبار'}
                         </button>
-                      )}
+                      
                     </div>
                   </div>
                 ))}
