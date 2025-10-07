@@ -179,9 +179,35 @@ class TestService {
       }
 
       // Resolve the full path to the image
-      const fullImagePath = path.resolve(imagePath);
+      // The path is stored as relative (e.g., 'scripts/grading_service/tests/123-456/123-456.jpg')
+      // We need to resolve it from the project root
+      let fullImagePath: string;
+      if (path.isAbsolute(imagePath)) {
+        fullImagePath = imagePath;
+      } else {
+        // Try multiple candidates to find the project root
+        const candidates = [
+          path.resolve(process.cwd(), '..', imagePath), // if cwd = backend, go up to project root
+          path.resolve(process.cwd(), imagePath),       // if cwd = project root
+          path.resolve(__dirname, '..', '..', '..', '..', '..', imagePath), // when compiled to dist/src/services, go up to project root
+        ];
+        
+        fullImagePath = '';
+        for (const cand of candidates) {
+          if (fs.existsSync(cand)) {
+            fullImagePath = cand;
+            break;
+          }
+        }
+        
+        if (!fullImagePath) {
+          // Fallback: assume backend is cwd and go up one level
+          fullImagePath = path.resolve(process.cwd(), '..', imagePath);
+        }
+      }
+      
       if (!fs.existsSync(fullImagePath)) {
-        return { success: false, score: null, message: 'Bubble image file not found on disk' };
+        return { success: false, score: null, message: `Bubble image file not found on disk. Tried path: ${fullImagePath}` };
       }
 
       // Determine python executable and script directory
