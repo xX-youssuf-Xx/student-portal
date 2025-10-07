@@ -1329,12 +1329,37 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                 </div>
 
                 <div className="submission-actions">
-                  <button 
-                    className="btn-primary"
-                    onClick={() => openManualGrading(submission)}
-                  >
-                    عرض/تصحيح يدوي
-                  </button>
+                  {test.test_type !== 'PHYSICAL_SHEET' && (
+                    <button 
+                      className="btn-primary"
+                      onClick={() => openManualGrading(submission)}
+                    >
+                      عرض/تصحيح يدوي
+                    </button>
+                  )}
+                  {test.test_type === 'PHYSICAL_SHEET' && (
+                    <button 
+                      className="btn-primary"
+                      onClick={async () => {
+                        if (!window.confirm('هل أنت متأكد من إعادة تصحيح هذه المشاركة باستخدام السكريبت؟')) return;
+                        try {
+                          const res = await axios.post(`/submissions/${submission.id}/regrade-physical`);
+                          if (res.data.success) {
+                            alert(`تم إعادة التصحيح بنجاح. الدرجة الجديدة: ${res.data.score}%`);
+                            await refreshSubmissions();
+                            onGradeUpdate && onGradeUpdate();
+                          } else {
+                            alert('فشل إعادة التصحيح: ' + (res.data.message || 'خطأ غير معروف'));
+                          }
+                        } catch (e) {
+                          console.error('Failed to regrade submission', e);
+                          alert('فشل إعادة التصحيح');
+                        }
+                      }}
+                    >
+                      إعادة تصحيح
+                    </button>
+                  )}
                   {((submission.answers && (submission.answers.file_path || submission.answers.bubble_image_path || submission.answers.bubble_image)) || submission.bubble_image_path) && (
                     <button
                       className="btn-outline"

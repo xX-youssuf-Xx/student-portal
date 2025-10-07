@@ -1065,6 +1065,35 @@ class TestController {
       res.status(500).json({ message: 'Internal server error' });
     }
   }
+
+  // Admin: regrade a single physical submission using the grading script
+  async regradePhysicalSubmission(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Submission ID is required' });
+        return;
+      }
+
+      const submissionId = parseInt(id, 10);
+      if (isNaN(submissionId)) {
+        res.status(400).json({ message: 'Invalid submission ID' });
+        return;
+      }
+
+      const result = await testService.regradePhysicalSubmission(submissionId);
+      
+      if (!result.success) {
+        res.status(400).json({ message: result.message || 'Failed to regrade submission' });
+        return;
+      }
+
+      res.json({ success: true, score: result.score, message: result.message });
+    } catch (error) {
+      console.error('Error regrading physical submission:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
 }
 
 export default new TestController();

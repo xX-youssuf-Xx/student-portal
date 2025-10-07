@@ -142,6 +142,125 @@ class TestService {
     return s;
   }
 
+  // Regrade a single physical submission using the grading script
+  async regradePhysicalSubmission(submissionId: number): Promise<{ success: boolean; score: number | null; message?: string }> {
+    try {
+      // Get submission details
+      const subQuery = 'SELECT * FROM test_answers WHERE id = $1';
+      const subResult = await database.query(subQuery, [submissionId]);
+      if (subResult.rows.length === 0) {
+        return { success: false, score: null, message: 'Submission not found' };
+      }
+      const submission = subResult.rows[0];
+      const testId = submission.test_id;
+      const studentId = submission.student_id;
+
+      // Get test details to determine number of questions
+      const test = await this.getTestById(testId);
+      if (!test || test.test_type !== 'PHYSICAL_SHEET') {
+        return { success: false, score: null, message: 'Test not found or not a physical sheet test' };
+      }
+
+      // Determine number of questions from correct_answers
+      const nQuestions = test.correct_answers?.answers ? Object.keys(test.correct_answers.answers).length : 50;
+
+      // Get the original bubble image path
+      let imagePath: string | null = null;
+      try {
+        const answers = submission.answers;
+        const answersObj = typeof answers === 'string' ? JSON.parse(answers) : answers;
+        imagePath = answersObj?.bubble_image_path || answersObj?.file_path || answersObj?.bubble_image || null;
+      } catch (e) {
+        return { success: false, score: null, message: 'Could not find original bubble image path' };
+      }
+
+      if (!imagePath) {
+        return { success: false, score: null, message: 'No bubble image found for this submission' };
+      }
+
+      // Resolve the full path to the image
+      const fullImagePath = path.resolve(imagePath);
+      if (!fs.existsSync(fullImagePath)) {
+        return { success: false, score: null, message: 'Bubble image file not found on disk' };
+      }
+
+      // Determine python executable and script directory
+      const pyExec = process.platform === 'win32' ? 'python' : 'python3';
+      const candidates = [
+        process.env.GRADING_SCRIPT_DIR,
+        path.resolve(process.cwd(), '..', 'scripts', 'grading_service'),
+        path.resolve(process.cwd(), 'scripts', 'grading_service'),
+        path.resolve(__dirname, '..', '..', '..', '..', 'scripts', 'grading_service'),
+      ].filter(Boolean) as string[];
+      
+      let scriptDir: string = '';
+      for (const cand of candidates) {
+        try {
+          if (typeof cand === 'string') {
+            const stat = fs.existsSync(path.join(cand, 'app.py'));
+            if (stat) { scriptDir = cand; break; }
+          }
+        } catch { /* ignore */ }
+      }
+      if (!scriptDir) {
+        scriptDir = path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
+      }
+
+      const outDir = path.resolve(scriptDir, 'tests', `${testId}-${studentId}`);
+      fs.mkdirSync(outDir, { recursive: true });
+
+      // Run the grading script
+      const args = ['app.py', '-n', String(nQuestions), '-t', String(testId), '-s', String(studentId), '-o', outDir, '-i', fullImagePath];
+
+      await new Promise<void>((resolve) => {
+        const child = spawn(pyExec, args, { cwd: scriptDir, stdio: 'inherit', shell: process.platform === 'win32' });
+        child.on('close', () => resolve());
+        child.on('error', () => resolve());
+      });
+
+      // Read the output JSON
+      const outJson = path.join(outDir, `${testId}-${studentId}.json`);
+      let detected: Record<string, string> | null = null;
+      try {
+        const raw = fs.readFileSync(outJson, 'utf8');
+        detected = JSON.parse(raw);
+      } catch {
+        detected = null;
+      }
+
+      if (!detected) {
+        return { success: false, score: null, message: 'Grading script did not produce valid output' };
+      }
+
+      // Calculate score
+      const score = this.calculateScore({ answers: detected }, test.correct_answers, test.test_type);
+
+      // Update submission
+      const answersPayload = {
+        answers: detected,
+        bubble_image_path: path.join('scripts', 'grading_service', 'tests', `${testId}-${studentId}`, `${testId}-${studentId}.jpg`).replace(/\\/g, '/')
+      };
+
+      const updQ = `
+        UPDATE test_answers
+        SET answers = $1, manual_grades = $2, score = $3, graded = true, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4
+        RETURNING id
+      `;
+      await database.query(updQ, [
+        JSON.stringify(answersPayload),
+        detected ? JSON.stringify({ grades: detected }) : null,
+        score,
+        submissionId
+      ]);
+
+      return { success: true, score, message: 'Submission regraded successfully' };
+    } catch (error) {
+      console.error('Error regrading physical submission:', error);
+      return { success: false, score: null, message: 'Internal error during regrading' };
+    }
+  }
+
   // Batch grade physical bubble sheets using external Python script
   async gradePhysicalBatch(params: {
     testId: number;

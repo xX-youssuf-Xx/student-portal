@@ -70,6 +70,14 @@ router.patch(
   testController.overrideGrade
 );
 
+// Admin: Regrade a single physical submission
+router.post(
+  '/submissions/:id/regrade-physical',
+  authenticateToken,
+  requireAdmin,
+  testController.regradePhysicalSubmission
+);
+
 router.post('/tests/:id/regrade-all', authenticateToken, requireAdmin, testController.regradeAllSubmissions);
 
 // Student routes (protected)
