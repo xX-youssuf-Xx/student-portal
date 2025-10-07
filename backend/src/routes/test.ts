@@ -62,6 +62,14 @@ router.patch(
   testController.updateBubbleAnswers
 );
 
+// Admin: Override grade for physical sheet test submission
+router.patch(
+  '/submissions/:id/override-grade',
+  authenticateToken,
+  requireAdmin,
+  testController.overrideGrade
+);
+
 router.post('/tests/:id/regrade-all', authenticateToken, requireAdmin, testController.regradeAllSubmissions);
 
 // Student routes (protected)

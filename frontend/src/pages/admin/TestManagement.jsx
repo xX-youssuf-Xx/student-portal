@@ -981,6 +981,8 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageUrl, setImageUrl] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showGradeOverrideModal, setShowGradeOverrideModal] = useState(false);
+  const [gradeOverrideSubmission, setGradeOverrideSubmission] = useState(null);
 
   const handleRegradeAll = async () => {
     if (!window.confirm('هل أنت متأكد من إعادة تصحيح جميع المشاركات؟ قد تستغرق هذه العملية بعض الوقت.')) return;
@@ -1365,27 +1367,39 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                     حذف المشاركة
                   </button>
                   {test.test_type === 'PHYSICAL_SHEET' && (
-                    <button
-                      className="btn-outline"
-                      style={{ marginInlineStart: 8 }}
-                      onClick={async () => {
-                        setEditingAnswersId(submission.id);
-                        try {
-                          const res = await axios.get(`/tests/${test.id}/submissions/${submission.id}`);
-                          const detail = res.data || {};
-                          setAnswersDetail(detail);
-                          const detected = (detail?.submission?.answers && detail.submission.answers.answers) ? detail.submission.answers.answers : {};
-                          setAnswersMap(detected || {});
-                          const count = detail?.correct_answers?.answers ? Object.keys(detail.correct_answers.answers).length : 50;
-                          setAnswersCount(count || 50);
-                        } catch (e) {
-                          alert('تعذر تحميل الإجابات الحالية');
-                          setEditingAnswersId(null);
-                        }
-                      }}
-                    >
-                      تعديل الإجابات
-                    </button>
+                    <>
+                      <button
+                        className="btn-outline"
+                        style={{ marginInlineStart: 8 }}
+                        onClick={async () => {
+                          setEditingAnswersId(submission.id);
+                          try {
+                            const res = await axios.get(`/tests/${test.id}/submissions/${submission.id}`);
+                            const detail = res.data || {};
+                            setAnswersDetail(detail);
+                            const detected = (detail?.submission?.answers && detail.submission.answers.answers) ? detail.submission.answers.answers : {};
+                            setAnswersMap(detected || {});
+                            const count = detail?.correct_answers?.answers ? Object.keys(detail.correct_answers.answers).length : 50;
+                            setAnswersCount(count || 50);
+                          } catch (e) {
+                            alert('تعذر تحميل الإجابات الحالية');
+                            setEditingAnswersId(null);
+                          }
+                        }}
+                      >
+                        تعديل الإجابات
+                      </button>
+                      <button
+                        className="btn-primary"
+                        style={{ marginInlineStart: 8 }}
+                        onClick={() => {
+                          setGradeOverrideSubmission(submission);
+                          setShowGradeOverrideModal(true);
+                        }}
+                      >
+                        تجاوز الدرجة
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -1400,21 +1414,46 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                   <div className="grading-form" style={{ marginTop: 10 }}>
                     <h4>تعديل إجابات البابل</h4>
                     <div className="bubble-answers-grid">
-                      {Array.from({ length: answersCount }, (_, i) => i + 1).map((qnum) => (
-                        <div key={qnum} className="bubble-answer-item">
-                          <label>س{qnum}</label>
-                          <select
-                            value={answersMap[qnum] || ''}
-                            onChange={(e) => setAnswersMap(prev => ({ ...prev, [qnum]: e.target.value }))}
+                      {Array.from({ length: answersCount }, (_, i) => i + 1).map((qnum) => {
+                        const correctAnswer = answersDetail?.correct_answers?.answers?.[qnum] || '';
+                        const studentAnswer = answersMap[qnum] || '';
+                        const isCorrect = correctAnswer && studentAnswer && correctAnswer === studentAnswer;
+                        
+                        return (
+                          <div 
+                            key={qnum} 
+                            className="bubble-answer-item"
+                            style={{
+                              backgroundColor: isCorrect ? '#d4edda' : (studentAnswer && correctAnswer && !isCorrect ? '#f8d7da' : 'transparent'),
+                              padding: '8px',
+                              borderRadius: '4px',
+                              border: '1px solid #ddd'
+                            }}
                           >
-                            <option value="">-</option>
-                            <option value="A">A</option>
-                            <option value="B">B</option>
-                            <option value="C">C</option>
-                            <option value="D">D</option>
-                          </select>
-                        </div>
-                      ))}
+                            <label style={{ fontWeight: 'bold' }}>س{qnum}</label>
+                            <select
+                              value={studentAnswer}
+                              onChange={(e) => setAnswersMap(prev => ({ ...prev, [qnum]: e.target.value }))}
+                              style={{
+                                width: '100%',
+                                padding: '4px',
+                                marginTop: '4px'
+                              }}
+                            >
+                              <option value="">-</option>
+                              <option value="A">A</option>
+                              <option value="B">B</option>
+                              <option value="C">C</option>
+                              <option value="D">D</option>
+                            </select>
+                            {correctAnswer && (
+                              <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
+                                الصحيح: <strong>{correctAnswer}</strong>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="form-actions" style={{ marginTop: 8 }}>
                       <button className="btn-secondary" onClick={() => setEditingAnswersId(null)}>إلغاء</button>
@@ -1425,6 +1464,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                             await axios.patch(`/submissions/${submission.id}/answers`, {
                               answers: answersMap
                             });
+                            alert('تم حفظ الإجابات بنجاح');
                             setEditingAnswersId(null);
                             await refreshSubmissions();
                             onGradeUpdate && onGradeUpdate();
@@ -1470,6 +1510,22 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
               </div>
             </div>
           </div>
+        )}
+        {showGradeOverrideModal && gradeOverrideSubmission && (
+          <GradeOverrideModal
+            submission={gradeOverrideSubmission}
+            test={test}
+            onClose={() => {
+              setShowGradeOverrideModal(false);
+              setGradeOverrideSubmission(null);
+            }}
+            onSave={async () => {
+              setShowGradeOverrideModal(false);
+              setGradeOverrideSubmission(null);
+              await refreshSubmissions();
+              onGradeUpdate && onGradeUpdate();
+            }}
+          />
         )}
       </div>
     </div>
@@ -1721,6 +1777,154 @@ const IncludeStudentsModal = ({ test, onClose, onDone }) => {
         <div className="form-actions" style={{ padding: 12 }}>
           <button className="btn-secondary" onClick={onClose}>إلغاء</button>
           <button className="btn-primary" onClick={handleInclude} disabled={submitting || loading}>{submitting ? 'جارٍ الإضافة...' : 'إضافة الطلاب'}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Grade Override Modal Component
+const GradeOverrideModal = ({ submission, test, onClose, onSave }) => {
+  const [score, setScore] = useState(submission?.score || 0);
+  const [teacherComment, setTeacherComment] = useState(submission?.teacher_comment || '');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Calculate total questions from correct answers
+  const totalQuestions = React.useMemo(() => {
+    if (!test?.correct_answers) return 50; // Default fallback
+
+    try {
+      const correctAnswers = typeof test.correct_answers === 'string'
+        ? JSON.parse(test.correct_answers)
+        : test.correct_answers;
+
+      if (test.test_type === 'MCQ') {
+        return correctAnswers.questions?.length || 0;
+      } else if (test.test_type === 'BUBBLE_SHEET' || test.test_type === 'PHYSICAL_SHEET') {
+        return Object.keys(correctAnswers.answers || {}).length;
+      }
+      return 50;
+    } catch {
+      return 50;
+    }
+  }, [test]);
+
+  const correctAnswers = React.useMemo(() => {
+    return Math.round((score / 100) * totalQuestions);
+  }, [score, totalQuestions]);
+
+  const handleScoreChange = (newScore) => {
+    const numScore = parseFloat(newScore) || 0;
+    setScore(Math.max(0, Math.min(100, numScore)));
+  };
+
+  const handleCorrectAnswersChange = (newCorrect) => {
+    const numCorrect = parseInt(newCorrect) || 0;
+    const newScore = totalQuestions > 0 ? Math.round((numCorrect / totalQuestions) * 10000) / 100 : 0;
+    setScore(Math.max(0, Math.min(100, newScore)));
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await axios.patch(`/submissions/${submission.id}/override-grade`, {
+        score: parseFloat(score),
+        teacher_comment: teacherComment.trim() || null
+      });
+
+      alert('تم تحديث الدرجة بنجاح');
+      onSave();
+    } catch (error) {
+      console.error('Error overriding grade:', error);
+      alert('حدث خطأ في تحديث الدرجة');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: 500 }}>
+        <div className="modal-header">
+          <h2>تجاوز الدرجة - {submission.student_name}</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+
+        <div style={{ padding: '20px' }}>
+          <div className="form-group">
+            <label>إجمالي عدد الأسئلة: <strong>{totalQuestions}</strong></label>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>النسبة المئوية (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={score}
+                onChange={(e) => handleScoreChange(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>عدد الإجابات الصحيحة</label>
+              <input
+                type="number"
+                min="0"
+                max={totalQuestions}
+                step="1"
+                value={correctAnswers}
+                onChange={(e) => handleCorrectAnswersChange(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>تعليق المعلم (اختياري)</label>
+            <textarea
+              value={teacherComment}
+              onChange={(e) => setTeacherComment(e.target.value)}
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                resize: 'vertical'
+              }}
+            />
+          </div>
+
+          <div className="form-actions" style={{ marginTop: '20px' }}>
+            <button
+              className="btn-secondary"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              إلغاء
+            </button>
+            <button
+              className="btn-primary"
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

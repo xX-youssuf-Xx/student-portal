@@ -1899,6 +1899,19 @@ class TestService {
       );
     }
   }
+
+  // Admin: override grade for physical sheet test submission
+  async overrideGrade(submissionId: number, score: number, teacherComment?: string): Promise<any | null> {
+    const query = `
+      UPDATE test_answers
+      SET score = $1, teacher_comment = COALESCE($2, teacher_comment), graded = true, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *
+    `;
+
+    const result = await database.query(query, [score, teacherComment, submissionId]);
+    return this.normalizeSubmission(result.rows[0] || null);
+  }
 }
 
 export default new TestService();

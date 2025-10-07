@@ -1030,6 +1030,41 @@ class TestController {
       res.status(500).json({ message: 'Internal server error' });
     }
   }
+
+  // Admin: override grade for physical sheet test submission
+  async overrideGrade(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ message: 'Submission ID is required' });
+        return;
+      }
+
+      const { score, teacher_comment } = req.body;
+      const submissionId = parseInt(id, 10);
+
+      if (isNaN(submissionId)) {
+        res.status(400).json({ message: 'Invalid submission ID' });
+        return;
+      }
+
+      if (score === undefined || score === null || score < 0 || score > 100) {
+        res.status(400).json({ message: 'Score must be between 0 and 100' });
+        return;
+      }
+
+      const submission = await testService.overrideGrade(submissionId, score, teacher_comment);
+      if (!submission) {
+        res.status(404).json({ message: 'Submission not found' });
+        return;
+      }
+
+      res.json({ submission });
+    } catch (error) {
+      console.error('Error overriding grade:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
 }
 
 export default new TestController();
