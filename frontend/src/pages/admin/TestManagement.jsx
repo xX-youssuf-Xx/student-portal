@@ -2016,10 +2016,7 @@ const ExportModal = ({ tests, onClose }) => {
                 <div style={{ marginInlineStart: 8 }}>{t.title} — {t.grade}{t.student_group ? ` — ${t.student_group}` : ''}</div>
               </div>
             ))}
-            {localSubs.filter(submission => 
-              searchTerm !== '' && 
-              (submission.student_name && submission.student_name.includes(searchTerm))
-            ).length === 0 && localSubs.length > 0 && (
+            {filtered.length === 0 && (
               <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
                 لا توجد نتائج تطابق البحث
               </div>
