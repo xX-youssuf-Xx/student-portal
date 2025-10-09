@@ -1786,7 +1786,7 @@ class TestService {
   async exportCombinedRankingsRows(testIds: number[]): Promise<{ header: string[]; rows: Array<any[]> }> {
     if (!Array.isArray(testIds) || testIds.length === 0) return { header: [], rows: [] };
     const q = `
-      SELECT ta.id as submission_id, ta.test_id, t.title as test_title, t.test_type, t.correct_answers, ta.student_id, s.name as student_name, s.phone_number, s.grade, s.student_group, ta.score, ta.graded, ta.answers
+      SELECT ta.id as submission_id, ta.test_id, t.title as test_title, t.test_type, t.correct_answers, ta.student_id, s.name as student_name, s.phone_number, s.parent_phone, s.grade, s.student_group, ta.score, ta.graded, ta.answers
       FROM test_answers ta
       JOIN students s ON ta.student_id = s.id
       JOIN tests t ON ta.test_id = t.id
@@ -1803,6 +1803,7 @@ class TestService {
       'معرف الطالب',
       'اسم الطالب',
       'الهاتف',
+      'هاتف ولي الأمر',
       'الصف',
       'المجموعة',
       'عدد الصحيح',
@@ -1891,7 +1892,7 @@ class TestService {
         r.student_id,
         r.student_name,
         r.phone_number,
-        r.parent_phone || '',  // Ensure we don't send null
+        r.parent_phone || '',
         gradeLabel,
         groupLabel,
         correct,
