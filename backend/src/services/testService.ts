@@ -1891,6 +1891,7 @@ class TestService {
         r.student_id,
         r.student_name,
         r.phone_number,
+        r.parent_phone || '',  // Ensure we don't send null
         gradeLabel,
         groupLabel,
         correct,
