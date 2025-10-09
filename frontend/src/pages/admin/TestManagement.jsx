@@ -347,7 +347,7 @@ const TestManagement = () => {
                 {currentTest.images.length > 0 ? (
                   <>
                     <img 
-                      src={`/${currentTest.images[currentImageIndex].image_path}`} 
+                      src={`${window.location.origin}/${currentTest.images[currentImageIndex].image_path}`} 
                       alt={`صفحة ${currentImageIndex + 1}`} 
                       className="img-fluid"
                     />
@@ -510,6 +510,7 @@ const TestModal = ({ test, onClose, onSave }) => {
 
       const testData = {
         ...formData,
+        duration_minutes: formData.duration_minutes || 0,
         questions: undefined,
         correct_answers: {
           questions: formData.test_type === 'MCQ' ? questionsForPayload : [],

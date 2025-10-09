@@ -1337,6 +1337,13 @@ class TestService {
         return false;
       }
       const submission = res.rows[0];
+      const testId = submission.test_id;
+      const studentId = submission.student_id;
+
+      // Get test details to check if it's a physical sheet
+      const test = await this.getTestById(testId);
+      const isPhysicalSheet = test?.test_type === 'PHYSICAL_SHEET';
+
       // Parse answers and collect file paths
       const filesToDelete: string[] = [];
       try {
@@ -1366,6 +1373,43 @@ class TestService {
           }
         } catch (e) {
           console.error('Error unlinking file', f, e);
+        }
+      }
+
+      // For physical bubble sheets, also delete the grading script output directory
+      if (isPhysicalSheet && testId && studentId) {
+        try {
+          // Find the script directory
+          const candidates = [
+            process.env.GRADING_SCRIPT_DIR,
+            path.resolve(process.cwd(), '..', 'scripts', 'grading_service'),
+            path.resolve(process.cwd(), 'scripts', 'grading_service'),
+            path.resolve(__dirname, '..', '..', '..', '..', 'scripts', 'grading_service'),
+          ].filter(Boolean) as string[];
+          
+          let scriptDir: string = '';
+          for (const cand of candidates) {
+            try {
+              if (typeof cand === 'string') {
+                const stat = fs.existsSync(path.join(cand, 'app.py'));
+                if (stat) { scriptDir = cand; break; }
+              }
+            } catch { /* ignore */ }
+          }
+          if (!scriptDir) {
+            scriptDir = path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
+          }
+
+          // Delete the output directory for this submission
+          const outDir = path.resolve(scriptDir, 'tests', `${testId}-${studentId}`);
+          if (fs.existsSync(outDir)) {
+            // Recursively delete the directory
+            fs.rmSync(outDir, { recursive: true, force: true });
+            console.log(`Deleted grading output directory: ${outDir}`);
+          }
+        } catch (e) {
+          console.error('Error deleting grading output directory:', e);
+          // Don't throw - this is best-effort cleanup
         }
       }
 
