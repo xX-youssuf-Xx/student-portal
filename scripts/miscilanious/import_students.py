@@ -7,8 +7,8 @@ from typing import List, Dict, Any
 import requests
 
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://studentportal.egypt-tech.com/api")
-ADMIN_PHONE = 'admin'
-ADMIN_PASSWORD = 'admin123'
+ADMIN_PHONE = '01009577656'
+ADMIN_PASSWORD = 'admin7656'
 
 LOGIN_ENDPOINT = f"{API_BASE_URL}/admin/login"
 CREATE_STUDENT_ENDPOINT = f"{API_BASE_URL}/admin/students"
@@ -90,8 +90,7 @@ def main():
                 "parent_phone": s.get("parent_phone"),
                 "password": s["password"],
             })
-        # Be gentle with the API
-        time.sleep(0.1)
+
 
     print(f"Done. Created {success_count}/{len(students)} students.")
 

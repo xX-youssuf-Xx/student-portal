@@ -666,12 +666,20 @@ class TestService {
     const fields: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
+    let correctAnswersChanged = false;
+    let newCorrectAnswers: any = null;
 
     Object.entries(testData).forEach(([key, value]) => {
       if (value === undefined) return;
       const mappedKey = (keyMap[key] as string) || key;
       // Ignore unknown fields to prevent SQL errors
       if (!allowedFields.has(mappedKey)) return;
+      
+      // Track if correct_answers are being changed
+      if (mappedKey === 'correct_answers') {
+        correctAnswersChanged = true;
+        newCorrectAnswers = value;
+      }
       
       // Validate enum fields to prevent empty strings
       if (['test_type', 'student_group', 'grade', 'view_type'].includes(mappedKey) && (value === '' || value === null)) {
@@ -709,7 +717,70 @@ class TestService {
     
     values.push(testId);
     const result = await database.query(query, values);
-    return result.rows[0] || null;
+    const updatedTest = result.rows[0] || null;
+
+    // If correct_answers were changed, re-evaluate all submissions for this test
+    if (correctAnswersChanged && updatedTest) {
+      try {
+        await this.regradeSubmissionsForTest(testId, newCorrectAnswers);
+      } catch (error) {
+        console.error('Error re-grading submissions after test update:', error);
+        // Don't throw - the test update was successful, grading is secondary
+      }
+    }
+
+    return updatedTest;
+  }
+
+  // Re-grade all submissions for a test when correct answers change
+  private async regradeSubmissionsForTest(testId: number, correctAnswers: any): Promise<void> {
+    try {
+      const test = await this.getTestById(testId);
+      if (!test) return;
+
+      // Get all submissions for this test
+      const submissionsQ = 'SELECT * FROM test_answers WHERE test_id = $1';
+      const submissionsRes = await database.query(submissionsQ, [testId]);
+      const submissions = submissionsRes.rows || [];
+
+      for (const submission of submissions) {
+        try {
+          // Only regrade if submission has answers
+          if (!submission.answers) continue;
+
+          // Calculate new score based on updated correct answers
+          let newScore = 0;
+          if (test.test_type === 'MCQ') {
+            newScore = this.computeScoreWithManual(
+              { ...test, correct_answers: correctAnswers },
+              this.normalizeSubmission(submission)
+            );
+          } else {
+            newScore = this.calculateScore(
+              submission.answers,
+              correctAnswers,
+              test.test_type
+            );
+          }
+
+          // Update the submission with new score
+          const updateQ = `
+            UPDATE test_answers
+            SET score = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+          `;
+          await database.query(updateQ, [newScore, submission.id]);
+        } catch (error) {
+          console.error(`Error re-grading submission ${submission.id}:`, error);
+          // Continue with next submission
+        }
+      }
+
+      console.log(`Successfully re-graded ${submissions.length} submissions for test ${testId}`);
+    } catch (error) {
+      console.error('Error in regradeSubmissionsForTest:', error);
+      throw error;
+    }
   }
 
   async deleteTest(testId: number): Promise<boolean> {
