@@ -106,7 +106,7 @@ const StudentManagement = () => {
       if (!test.correct_answers) return 0;
       if (test.test_type === 'MCQ') {
         return test.correct_answers.questions?.length || 0;
-      } else if (test.test_type === 'BUBBLE_SHEET') {
+      } else if (test.test_type === 'BUBBLE_SHEET' || test.test_type === 'PHYSICAL_SHEET') {
         return Object.keys(test.correct_answers.answers || {}).length;
       }
       return 0;
