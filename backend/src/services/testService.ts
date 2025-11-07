@@ -935,8 +935,20 @@ class TestService {
       return null;
     }
 
-    // If already submitted, allow viewing questions only if viewing is permitted
-    if (availableTest.is_submitted) {
+    // Load the student's submission (draft or final) for finer-grained decisions
+    const submissionResult = await database.query(
+      'SELECT * FROM test_answers WHERE test_id = $1 AND student_id = $2 LIMIT 1',
+      [testId, studentId]
+    );
+    const submissionRow = submissionResult.rows[0] ?? null;
+    const submission = submissionRow ? this.normalizeSubmission(submissionRow) : null;
+
+    const hasFinalSubmission = submission
+      ? (submission.graded === true || submission.score !== null)
+      : false;
+
+    // If there is a final submission and viewing is restricted, deny access
+    if (hasFinalSubmission) {
       const canView = (availableTest as any).view_type === 'IMMEDIATE' || (availableTest as any).view_permission === true;
       if (!canView) {
         return null;
@@ -984,7 +996,10 @@ class TestService {
       }
       delete (testData as any).correct_answers;
       // Add submission status from available test
-      (testData as any).is_submitted = availableTest.is_submitted;
+      (testData as any).is_submitted = hasFinalSubmission;
+      if (submission) {
+        (testData as any).submission = submission;
+      }
       // Ensure start/end times are local wall-time strings
   (testData as any).start_time = formatLocal((testData as any).start_time);
   (testData as any).end_time = formatLocal((testData as any).end_time);
@@ -1003,6 +1018,10 @@ class TestService {
   (fullTest as any).end_time_utc = formatUtc((fullTest as any).end_time);
   (fullTest as any).start_time_ms = formatMs((fullTest as any).start_time);
   (fullTest as any).end_time_ms = formatMs((fullTest as any).end_time);
+      if (submission) {
+        (fullTest as any).submission = submission;
+      }
+      (fullTest as any).is_submitted = hasFinalSubmission;
     }
     return fullTest;
   }
