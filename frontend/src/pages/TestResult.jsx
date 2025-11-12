@@ -15,11 +15,22 @@ const TestResult = () => {
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [rank, setRank] = useState(null);
   const [totalStudents, setTotalStudents] = useState(0);
+  const [testImages, setTestImages] = useState([]);
 
   useEffect(() => {
     fetchResult();
     fetchRank();
+    fetchTestImages();
   }, [testId]);
+
+  const fetchTestImages = async () => {
+    try {
+      const response = await axios.get(`/tests/${testId}/images`);
+      setTestImages(response.data || []);
+    } catch (error) {
+      console.error("Error fetching test images:", error);
+    }
+  };
 
   const fetchResult = async () => {
     try {
@@ -218,6 +229,9 @@ const TestResult = () => {
       result.manual_grades_visible ||
       {};
 
+    // Get test images to display with questions
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.egypt-tech.com";
+
     return (
       <div className="answers-comparison">
         <h3>مقارنة الإجابات</h3>
@@ -231,6 +245,10 @@ const TestResult = () => {
             q.type === "OPEN"
               ? openGrade !== null && openGrade > 0
               : studentAns?.answer === q.correct;
+
+          // Get image for this question using the same logic as TestTaking
+          const image = testImages?.find(img => img.display_order === q.media_index);
+          const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
 
           return (
             <div
@@ -251,6 +269,16 @@ const TestResult = () => {
               </div>
 
               <div className="question-text">
+                {/* Display question image at the top if available */}
+                {imageUrl && (
+                  <div className="question-media" style={{ marginBottom: 12 }}>
+                    <img
+                      src={imageUrl}
+                      alt={`سؤال ${idx + 1}`}
+                      style={{ maxWidth: "100%", borderRadius: 6 }}
+                    />
+                  </div>
+                )}
                 <p>{q.text}</p>
                 {q.media && (
                   <div className="question-media">

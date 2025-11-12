@@ -261,12 +261,13 @@ const StudentDashboard = () => {
                       )}
                     </div>
                     <div className="test-actions">
-                        <button 
+                        <button
                           className="btn-start-test"
                           onClick={() => startTest(test.id)}
-                          disabled={new Date() > new Date(test.end_time)}
+                          disabled={Date.now() < (test.start_time_ms || 0) || Date.now() > (test.end_time_ms || 0)}
                         >
-                          {new Date() > new Date(test.end_time) ? 'انتهى وقت الاختبار' : '🚀 بدء الاختبار'}
+                          {Date.now() > (test.end_time_ms || 0) ? 'انتهى وقت الاختبار' :
+                           Date.now() < (test.start_time_ms || 0) ? 'لم يبدأ الاختبار بعد' : '🚀 بدء الاختبار'}
                         </button>
                       
                     </div>
