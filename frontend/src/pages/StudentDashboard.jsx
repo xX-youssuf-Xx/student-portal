@@ -88,11 +88,10 @@ const StudentDashboard = () => {
     // Format manually to avoid any timezone shifts
     const arabicMonth = arabicMonths[month - 1];
     
-    // Convert to 12-hour format
-    const hour12 = hours % 12 || 12; // Convert 0 to 12 for midnight
-    const ampm = hours < 12 ? 'م' : 'ص'; // Arabic AM/PM
-    const formattedHours = hour12.toString().padStart(2, '0');
+    // Keep 24-hour format but add Arabic AM/PM indicators
+    const formattedHours = hours.toString().padStart(2, '0');
     const formattedMinutes = minutes.toString().padStart(2, '0');
+    const ampm = hours < 12 ? 'ص' : 'م'; // Arabic AM/PM
     
     return `${day} ${arabicMonth} ${year} في ${formattedHours}:${formattedMinutes} ${ampm}`;
   };
