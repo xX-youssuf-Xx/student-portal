@@ -57,13 +57,28 @@ const TestResult = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("ar-EG", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    // Parse time string directly to get exact components
+    const date = new Date(dateString);
+    
+    // Extract components exactly as stored
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    
+    // Arabic month names
+    const arabicMonths = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    
+    // Format manually to avoid any timezone shifts
+    const arabicMonth = arabicMonths[month - 1];
+    const formattedHours = hours.toString().padStart(2, '0');
+    const formattedMinutes = minutes.toString().padStart(2, '0');
+    
+    return `${day} ${arabicMonth} ${year} في ${formattedHours}:${formattedMinutes}`;
   };
 
   const getTestTypeLabel = (type) => {

@@ -884,14 +884,12 @@ class TestService {
         const startTime = new Date(test.start_time);
         const endTime = new Date(test.end_time);
         
-        // Add timezone offset to ensure correct display in frontend
-        const startTimeWithTZ = new Date(startTime.getTime() + cairoOffsetMs);
-        const endTimeWithTZ = new Date(endTime.getTime() + cairoOffsetMs);
-        
+        // Use the exact times as set by admin, no timezone shifting
+        // The start_time and end_time from DB should be displayed as-is
         return {
           ...test,
-          start_time: formatLocal(startTimeWithTZ),
-          end_time: formatLocal(endTimeWithTZ),
+          start_time: formatLocal(startTime),
+          end_time: formatLocal(endTime),
           start_time_utc: startTime.toISOString(),
           end_time_utc: endTime.toISOString(),
           start_time_ms: startTime.getTime(),
