@@ -87,10 +87,14 @@ const StudentDashboard = () => {
     
     // Format manually to avoid any timezone shifts
     const arabicMonth = arabicMonths[month - 1];
-    const formattedHours = hours.toString().padStart(2, '0');
+    
+    // Convert to 12-hour format
+    const hour12 = hours % 12 || 12; // Convert 0 to 12 for midnight
+    const ampm = hours < 12 ? 'م' : 'ص'; // Arabic AM/PM
+    const formattedHours = hour12.toString().padStart(2, '0');
     const formattedMinutes = minutes.toString().padStart(2, '0');
     
-    return `${day} ${arabicMonth} ${year} في ${formattedHours}:${formattedMinutes}`;
+    return `${day} ${arabicMonth} ${year} في ${formattedHours}:${formattedMinutes} ${ampm}`;
   };
 
   const getTestTypeLabel = (type) => {
