@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './StudentCard.css';
 
 const StudentCard = ({ student, onEdit, onDelete, extraActions }) => {
+  const [copied, setCopied] = useState(false);
+
+  const copyId = () => {
+    navigator.clipboard.writeText(student.id.toString());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   const gradeLabels = {
     '3MIDDLE': 'الصف الثالث الإعدادي',
     '1HIGH': 'الصف الأول الثانوي',
@@ -17,7 +25,24 @@ const StudentCard = ({ student, onEdit, onDelete, extraActions }) => {
   return (
     <div className="student-card">
       <div className="student-card-header">
-        <h3>{student.name}</h3>
+        <h3>
+          {student.name}
+          <span className="student-id">
+            #{student.id}
+            <button className="copy-id-btn" onClick={copyId} title="نسخ الرقم">
+              {copied ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              )}
+            </button>
+          </span>
+        </h3>
         <div className="student-card-actions">
           <button onClick={() => onEdit(student)} className="edit-btn">تعديل</button>
           <button onClick={() => onDelete(student.id)} className="delete-btn">حذف</button>
