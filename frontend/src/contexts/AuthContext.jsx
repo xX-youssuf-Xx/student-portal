@@ -2,7 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 // Set global API base URL for all axios requests
-axios.defaults.baseURL = 'https://studentportal.8bitsolutions.net/api';
+const API_BASE_URL = 'https://studentportal.8bitsolutions.net/api';
+axios.defaults.baseURL = API_BASE_URL;
+console.log('✅ AuthContext loaded with API_BASE_URL:', API_BASE_URL);
 
 const AuthContext = createContext();
 
@@ -34,6 +36,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (phoneNumber, password, userType) => {
     try {
       const endpoint = userType === 'admin' ? '/admin/login' : '/student/login';
+      console.log('🔐 Attempting login to:', axios.defaults.baseURL + endpoint);
       const response = await axios.post(endpoint, {
         phone_number: phoneNumber,
         password: password

@@ -4,7 +4,7 @@ const dist = new URL("./dist/", import.meta.url);
 
 serve({
   port: 3017,
-  async fetch(request) {
+  async fetch(request: Request) {
     const url = new URL(request.url);
     let path = url.pathname;
     
