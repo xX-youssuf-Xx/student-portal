@@ -10,19 +10,40 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve static files from uploads directory (use cwd for Docker compatibility)
+const UPLOADS_ROOT = path.resolve(process.cwd(), 'uploads');
+app.use('/uploads', express.static(UPLOADS_ROOT, {
+  index: false,
+  fallthrough: true,
+  maxAge: '1d'
+}));
+console.log(`📁 Serving uploads from: ${UPLOADS_ROOT} at /uploads`);
 
 // Serve grading images (annotated bubble outputs) from grading_service directory
-// GRADING_SCRIPT_DIR takes precedence; fallback assumes grading_service is in backend folder
-const GRADING_ROOT = process.env.GRADING_SCRIPT_DIR
-  || path.resolve(process.cwd(), 'grading_service');
+// Try multiple possible locations for Docker/local dev compatibility
+const possibleGradingPaths = [
+  process.env.GRADING_SCRIPT_DIR,
+  path.resolve(process.cwd(), 'grading_service'),
+  path.resolve(__dirname, 'grading_service'),
+  path.resolve(__dirname, '..', 'grading_service'),
+].filter(Boolean) as string[];
+
+let GRADING_ROOT = possibleGradingPaths[0]!;
+for (const p of possibleGradingPaths) {
+  const fs = require('fs');
+  if (fs.existsSync(p)) {
+    GRADING_ROOT = p;
+    break;
+  }
+}
+
 app.use('/grading_service', express.static(GRADING_ROOT, {
   index: false,
   fallthrough: true,
   maxAge: '1d'
 }));
 console.log(`🖼️  Serving grading images from: ${GRADING_ROOT} at /grading_service`);
+console.log(`📂 __dirname: ${__dirname}, cwd: ${process.cwd()}`);
 
 // Routes
 app.use('/', routes);
