@@ -1,15 +1,21 @@
 # Build stage
-FROM oven/bun:1-alpine AS builder
+FROM ubuntu:22.04 AS builder
 
 WORKDIR /app
 
-# Install Python and build dependencies for grading service + sharp/pdf2pic native deps
-RUN apk add --no-cache \
-    python3 py3-pip python3-dev \
-    g++ make cmake libffi-dev \
-    vips-dev \
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-dev \
+    curl unzip \
+    build-essential cmake libffi-dev \
+    libvips-dev libvips42 \
     ghostscript \
-    graphicsmagick
+    graphicsmagick \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 # Copy package files
 COPY package.json bun.lock* ./
@@ -29,21 +35,26 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 WORKDIR /app
 
 # Production stage
-FROM oven/bun:1-alpine
+FROM ubuntu:22.04
 
 WORKDIR /app
 
-# Install Python runtime, OpenCV dependencies, and sharp/pdf2pic runtime deps
-RUN apk add --no-cache \
-    python3 py3-pip \
-    libstdc++ libgomp \
-    vips \
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip \
+    libvips42 \
     ghostscript \
-    graphicsmagick
+    graphicsmagick \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 # Create non-root user
-RUN addgroup -g 1001 -S bunjs && \
-    adduser -S bunjs -u 1001
+RUN groupadd -g 1001 bunjs && \
+    useradd -m -u 1001 -g bunjs bunjs
 
 # Copy built artifacts from builder
 COPY --from=builder --chown=bunjs:bunjs /app/dist ./dist
