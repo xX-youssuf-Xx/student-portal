@@ -562,7 +562,7 @@ class TestController {
       // Use UTC now and convert to Cairo time using toLocaleString with Africa/Cairo timezone
       const utcNow = new Date();
       const cairoNowString = utcNow.toLocaleString('en-US', { timeZone: 'Africa/Cairo' });
-      const timezoneStr = 'GMT+3';
+      const timezoneStr = 'GMT+2'; // Cairo is always UTC+2 (EET - Egypt stopped DST in 2014)
       const allStartTimes = (tests || []).map(t => ({
         id: (t as any).id,
         title: (t as any).title,

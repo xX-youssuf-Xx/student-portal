@@ -7,26 +7,26 @@
   display: flex;
   flex-direction: column;
   min-height: 180px;
+  min-width: 280px;
 }
 
 .student-card-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: column;
   margin-bottom: 15px;
-  gap: 12px;
+  gap: 10px;
 }
 
 .student-card-header h3 {
   margin: 0;
   color: #007bff;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  word-break: break-word;
-  line-height: 1.4;
+  display: block;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  white-space: normal;
 }
 
 .student-id {
@@ -59,9 +59,9 @@
 
 .student-card-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
-  flex-shrink: 0;
+  justify-content: flex-end;
 }
 
 .student-card-actions .edit-btn,

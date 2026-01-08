@@ -5,6 +5,61 @@ import { Button, Modal } from 'react-bootstrap';
 import { FaEye, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import './TestManagement.css';
 
+// Countdown Timer Component for admin test cards
+const CountdownTimer = ({ startTimeMs, endTimeMs }) => {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!startTimeMs || !endTimeMs) return null;
+
+  const hasStarted = now >= startTimeMs;
+  const hasEnded = now >= endTimeMs;
+
+  // Determine status and target
+  let status, targetMs, label;
+  if (hasEnded) {
+    status = 'ended';
+    label = 'انتهى';
+  } else if (hasStarted) {
+    status = 'active';
+    targetMs = endTimeMs;
+    label = 'ينتهي خلال';
+  } else {
+    status = 'upcoming';
+    targetMs = startTimeMs;
+    label = 'يبدأ خلال';
+  }
+
+  if (status === 'ended') {
+    return <div className="test-countdown ended">🔴 {label}</div>;
+  }
+
+  const diffMs = targetMs - now;
+  const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const pad = (n) => String(n).padStart(2, '0');
+
+  return (
+    <div className={`test-countdown ${status}`}>
+      <span className="countdown-label">{status === 'active' ? '🟢' : '🟡'} {label}:</span>
+      <span className="countdown-values">
+        {days > 0 && <span className="countdown-unit">{days}<small>ي</small></span>}
+        <span className="countdown-unit">{pad(hours)}<small>س</small></span>
+        <span className="countdown-unit">{pad(minutes)}<small>د</small></span>
+        <span className="countdown-unit">{pad(seconds)}<small>ث</small></span>
+      </span>
+    </div>
+  );
+};
+
 const TestManagement = () => {
   const { user } = useAuth();
   const [tests, setTests] = useState([]);
@@ -206,6 +261,12 @@ const TestManagement = () => {
                   <p><strong>المدة:</strong> {test.duration_minutes} دقيقة</p>
                 )}
               </div>
+
+              {/* Countdown Timer */}
+              <CountdownTimer 
+                startTimeMs={test.start_time_ms} 
+                endTimeMs={test.end_time_ms} 
+              />
 
               <div className="test-stats">
                 <div className="stat">

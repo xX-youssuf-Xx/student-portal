@@ -48,7 +48,7 @@ const formatUtc = (d: Date | string | null) => {
     if (hasTimezoneSuffix(s)) {
       return new Date(s).toISOString();
     }
-    // Append configured parse timezone (default: Cairo +03:00) and parse
+    // Append configured parse timezone (default: Cairo +02:00) and parse
     return new Date(s + parseTimezoneSuffix()).toISOString();
   } catch (e) {
     // Fallback: let Date try parsing whatever it can
