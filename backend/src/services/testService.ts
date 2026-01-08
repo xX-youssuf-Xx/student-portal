@@ -521,7 +521,8 @@ class TestService {
     const query = `
       SELECT t.*, 
              COUNT(DISTINCT ta.id) as submission_count,
-             COUNT(DISTINCT CASE WHEN ta.graded = true THEN ta.id END) as graded_count
+             COUNT(DISTINCT CASE WHEN ta.graded = true THEN ta.id END) as graded_count,
+             ROUND(AVG(CASE WHEN ta.graded = true THEN ta.score ELSE NULL END)::numeric, 2) as average_score
       FROM tests t
       LEFT JOIN test_answers ta ON t.id = ta.test_id
       GROUP BY t.id
@@ -568,7 +569,8 @@ class TestService {
       const testQuery = `
         SELECT t.*, 
                COUNT(DISTINCT ta.id) as submission_count,
-               COUNT(DISTINCT CASE WHEN ta.graded = true THEN ta.id END) as graded_count
+               COUNT(DISTINCT CASE WHEN ta.graded = true THEN ta.id END) as graded_count,
+               ROUND(AVG(CASE WHEN ta.graded = true THEN ta.score ELSE NULL END)::numeric, 2) as average_score
         FROM tests t
         LEFT JOIN test_answers ta ON t.id = ta.test_id
         WHERE t.id = $1
@@ -967,7 +969,10 @@ class TestService {
              CASE 
                WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true OR t.show_grade_outside = true THEN ta.score
                ELSE NULL
-             END as visible_score
+             END as visible_score,
+             (SELECT ROUND(AVG(ta2.score)::numeric, 2) 
+              FROM test_answers ta2 
+              WHERE ta2.test_id = t.id AND ta2.graded = true) as average_score
       FROM tests t
       JOIN test_answers ta ON t.id = ta.test_id
       WHERE ta.student_id = $1
@@ -1209,7 +1214,10 @@ class TestService {
              CASE 
                WHEN t.view_type = 'IMMEDIATE' OR t.view_permission = true THEN ta.answers
                ELSE NULL
-             END as visible_answers
+             END as visible_answers,
+             (SELECT ROUND(AVG(ta2.score)::numeric, 2) 
+              FROM test_answers ta2 
+              WHERE ta2.test_id = t.id AND ta2.graded = true) as average_score
       FROM tests t
       JOIN test_answers ta ON t.id = ta.test_id
       WHERE t.id = $1 AND ta.student_id = $2

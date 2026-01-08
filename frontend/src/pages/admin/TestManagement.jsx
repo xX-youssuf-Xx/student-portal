@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { Button, Modal } from 'react-bootstrap';
-import { FaEye, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { FaEye, FaTimes, FaChevronLeft, FaChevronRight, FaTrash, FaEdit, FaImage, FaRedo, FaSearch, FaUserPlus, FaFileExport, FaPercent } from 'react-icons/fa';
 import './TestManagement.css';
 
 // Countdown Timer Component for admin test cards
@@ -259,6 +259,16 @@ const TestManagement = () => {
                 <p><strong>وقت النهاية:</strong> {formatDate(test.end_time)}</p>
                 {test.duration_minutes && (
                   <p><strong>المدة:</strong> {test.duration_minutes} دقيقة</p>
+                )}
+                {test.average_score !== null && test.average_score !== undefined && (
+                  <p className="average-score">
+                    <strong>📊 المتوسط:</strong> {Math.floor(Number(test.average_score))}%
+                    {test.correct_answers?.answers && (
+                      <span className="average-correct">
+                        {' '}({Math.floor((Number(test.average_score) / 100) * Object.keys(test.correct_answers.answers).length)}/{Object.keys(test.correct_answers.answers).length})
+                      </span>
+                    )}
+                  </p>
                 )}
               </div>
 
@@ -1304,48 +1314,45 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
-        <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
-            <div style={{ width: '300px' }}>
+        {/* Modern toolbar section */}
+        <div className="submissions-toolbar">
+          <div className="toolbar-row">
+            <div className="search-box">
+              <FaSearch className="search-icon" />
               <input
                 type="text"
                 placeholder="ابحث باسم الطالب..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
-                  fontSize: '14px',
-                  direction: 'rtl'
-                }}
               />
             </div>
+            <div className="toolbar-actions">
               {test.test_type === 'PHYSICAL_SHEET' && (
                 <>
-                  <button className="btn-primary" onClick={() => setShowBatchModal(true)}>
-                    تصحيح جماعي للبابل
+                  <button className="toolbar-btn primary" onClick={() => setShowBatchModal(true)} title="تصحيح جماعي للبابل">
+                    <FaEdit /> <span>تصحيح جماعي</span>
                   </button>
-                  <button className="btn-outline" onClick={() => setShowIncludeModal(true)}>
-                    إضافة طلاب للاختبار
+                  <button className="toolbar-btn outline" onClick={() => setShowIncludeModal(true)} title="إضافة طلاب للاختبار">
+                    <FaUserPlus /> <span>إضافة طلاب</span>
                   </button>
                 </>
               )}
               {(test.test_type === 'MCQ' || test.test_type === 'BUBBLE_SHEET') && (
-                <button className="btn-primary" onClick={handleRegradeAll}>
-                  إعادة تصحيح الكل
+                <button className="toolbar-btn primary" onClick={handleRegradeAll} title="إعادة تصحيح الكل">
+                  <FaRedo /> <span>إعادة تصحيح الكل</span>
                 </button>
               )}
             </div>
           </div>
-          <div style={{ color: '#666', fontSize: '14px', textAlign: 'right' }}>
-            العدد الإجمالي: {localSubs.length} | 
-            العدد بعد البحث: {localSubs.filter(sub => 
+          <div className="toolbar-stats">
+            <span className="stat-badge">الإجمالي: <strong>{localSubs.length}</strong></span>
+            <span className="stat-badge">نتائج البحث: <strong>{localSubs.filter(sub => 
               searchTerm === '' || 
               (sub.student_name && sub.student_name.includes(searchTerm))
-            ).length}
+            ).length}</strong></span>
+            {testDetail?.average_score !== null && testDetail?.average_score !== undefined && (
+              <span className="stat-badge average">📊 المتوسط: <strong>{Math.floor(Number(testDetail.average_score))}%</strong></span>
+            )}
           </div>
         </div>
 
@@ -1390,104 +1397,108 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
                   )}
                 </div>
 
-                <div className="submission-actions">
-                  {test.test_type !== 'PHYSICAL_SHEET' && (
-                    <button 
-                      className="btn-primary"
-                      onClick={() => openManualGrading(submission)}
-                    >
-                      عرض/تصحيح يدوي
-                    </button>
-                  )}
-                  {test.test_type === 'PHYSICAL_SHEET' && (
-                    <button 
-                      className="btn-primary"
+                <div className="submission-actions-modern">
+                  <div className="action-group primary-actions">
+                    {test.test_type !== 'PHYSICAL_SHEET' && (
+                      <button 
+                        className="action-btn primary"
+                        onClick={() => openManualGrading(submission)}
+                        title="عرض/تصحيح يدوي"
+                      >
+                        <FaEye /> <span>عرض/تصحيح</span>
+                      </button>
+                    )}
+                    {test.test_type === 'PHYSICAL_SHEET' && (
+                      <>
+                        <button 
+                          className="action-btn primary"
+                          onClick={async () => {
+                            if (!window.confirm('هل أنت متأكد من إعادة تصحيح هذه المشاركة؟')) return;
+                            try {
+                              const res = await axios.post(`/submissions/${submission.id}/regrade-physical`);
+                              if (res.data.success) {
+                                alert(`تم إعادة التصحيح بنجاح. الدرجة: ${res.data.score}%`);
+                                await refreshSubmissions();
+                                onGradeUpdate && onGradeUpdate();
+                              } else {
+                                alert('فشل: ' + (res.data.message || 'خطأ غير معروف'));
+                              }
+                            } catch (e) {
+                              console.error('Failed to regrade', e);
+                              alert('فشل إعادة التصحيح');
+                            }
+                          }}
+                          title="إعادة تصحيح"
+                        >
+                          <FaRedo /> <span>إعادة تصحيح</span>
+                        </button>
+                        <button
+                          className="action-btn secondary"
+                          onClick={async () => {
+                            setEditingAnswersId(submission.id);
+                            try {
+                              const res = await axios.get(`/tests/${test.id}/submissions/${submission.id}`);
+                              const detail = res.data || {};
+                              setAnswersDetail(detail);
+                              const detected = (detail?.submission?.answers && detail.submission.answers.answers) ? detail.submission.answers.answers : {};
+                              setAnswersMap(detected || {});
+                              const count = detail?.correct_answers?.answers ? Object.keys(detail.correct_answers.answers).length : 50;
+                              setAnswersCount(count || 50);
+                            } catch (e) {
+                              alert('تعذر تحميل الإجابات');
+                              setEditingAnswersId(null);
+                            }
+                          }}
+                          title="تعديل الإجابات"
+                        >
+                          <FaEdit /> <span>تعديل الإجابات</span>
+                        </button>
+                        <button
+                          className="action-btn secondary"
+                          onClick={() => {
+                            setGradeOverrideSubmission(submission);
+                            setShowGradeOverrideModal(true);
+                          }}
+                          title="تجاوز الدرجة"
+                        >
+                          <FaPercent /> <span>تجاوز الدرجة</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="action-group secondary-actions">
+                    {((submission.answers && (submission.answers.file_path || submission.answers.bubble_image_path || submission.answers.bubble_image)) || submission.bubble_image_path) && (
+                      <button
+                        className="action-btn icon-only"
+                        onClick={() => {
+                          const img = (submission.answers && (submission.answers.bubble_image_path || submission.answers.file_path || submission.answers.bubble_image)) || submission.bubble_image_path;
+                          const url = makeImageUrl(img);
+                          setImageUrl(url);
+                          setShowImageModal(true);
+                        }}
+                        title="عرض صورة البابل"
+                      >
+                        <FaImage />
+                      </button>
+                    )}
+                    <button
+                      className="action-btn icon-only danger"
                       onClick={async () => {
-                        if (!window.confirm('هل أنت متأكد من إعادة تصحيح هذه المشاركة باستخدام السكريبت؟')) return;
+                        if (!window.confirm('هل أنت متأكد من حذف هذه المشاركة؟')) return;
                         try {
-                          const res = await axios.post(`/submissions/${submission.id}/regrade-physical`);
-                          if (res.data.success) {
-                            alert(`تم إعادة التصحيح بنجاح. الدرجة الجديدة: ${res.data.score}%`);
-                            await refreshSubmissions();
-                            onGradeUpdate && onGradeUpdate();
-                          } else {
-                            alert('فشل إعادة التصحيح: ' + (res.data.message || 'خطأ غير معروف'));
-                          }
+                          await axios.delete(`/submissions/${submission.id}`);
+                          await refreshSubmissions();
+                          onGradeUpdate && onGradeUpdate();
                         } catch (e) {
-                          console.error('Failed to regrade submission', e);
-                          alert('فشل إعادة التصحيح');
+                          console.error('Failed to delete submission', e);
+                          alert('فشل حذف المشاركة');
                         }
                       }}
+                      title="حذف المشاركة"
                     >
-                      إعادة تصحيح
+                      <FaTrash />
                     </button>
-                  )}
-                  {((submission.answers && (submission.answers.file_path || submission.answers.bubble_image_path || submission.answers.bubble_image)) || submission.bubble_image_path) && (
-                    <button
-                      className="btn-outline"
-                      style={{ marginInlineStart: 8 }}
-                      onClick={() => {
-                        const img = (submission.answers && (submission.answers.bubble_image_path || submission.answers.file_path || submission.answers.bubble_image)) || submission.bubble_image_path;
-                        const url = makeImageUrl(img);
-                        setImageUrl(url);
-                        setShowImageModal(true);
-                      }}
-                    >
-                      عرض صورة البابل
-                    </button>
-                  )}
-                  <button
-                    className="btn-danger"
-                    style={{ marginInlineStart: 8 }}
-                    onClick={async () => {
-                      if (!window.confirm('هل أنت متأكد من حذف هذه المشاركة؟ هذا سيحذف الملفات المرتبطة أيضاً.')) return;
-                      try {
-                        await axios.delete(`/submissions/${submission.id}`);
-                        await refreshSubmissions();
-                        onGradeUpdate && onGradeUpdate();
-                      } catch (e) {
-                        console.error('Failed to delete submission', e);
-                        alert('فشل حذف المشاركة');
-                      }
-                    }}
-                  >
-                    حذف المشاركة
-                  </button>
-                  {test.test_type === 'PHYSICAL_SHEET' && (
-                    <>
-                      <button
-                        className="btn-outline"
-                        style={{ marginInlineStart: 8 }}
-                        onClick={async () => {
-                          setEditingAnswersId(submission.id);
-                          try {
-                            const res = await axios.get(`/tests/${test.id}/submissions/${submission.id}`);
-                            const detail = res.data || {};
-                            setAnswersDetail(detail);
-                            const detected = (detail?.submission?.answers && detail.submission.answers.answers) ? detail.submission.answers.answers : {};
-                            setAnswersMap(detected || {});
-                            const count = detail?.correct_answers?.answers ? Object.keys(detail.correct_answers.answers).length : 50;
-                            setAnswersCount(count || 50);
-                          } catch (e) {
-                            alert('تعذر تحميل الإجابات الحالية');
-                            setEditingAnswersId(null);
-                          }
-                        }}
-                      >
-                        تعديل الإجابات
-                      </button>
-                      <button
-                        className="btn-primary"
-                        style={{ marginInlineStart: 8 }}
-                        onClick={() => {
-                          setGradeOverrideSubmission(submission);
-                          setShowGradeOverrideModal(true);
-                        }}
-                      >
-                        تجاوز الدرجة
-                      </button>
-                    </>
-                  )}
+                  </div>
                 </div>
 
                 {gradingSubmission === submission.id && (

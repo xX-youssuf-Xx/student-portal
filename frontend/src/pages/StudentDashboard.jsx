@@ -432,6 +432,18 @@ const StudentDashboard = () => {
                             )}
                           </div>
                         )}
+                        {test.average_score !== null && test.average_score !== undefined && (
+                          <div className="average-info">
+                            <span className="average-score">
+                              📊 متوسط الصف: {Math.floor(parseFloat(test.average_score))}%
+                              {totalQuestions > 0 && (
+                                <span className="average-correct">
+                                  ({Math.floor((parseFloat(test.average_score) / 100) * totalQuestions)}/{totalQuestions})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       {showDetails || showGradeOnly ? (
                         <div className="test-actions">

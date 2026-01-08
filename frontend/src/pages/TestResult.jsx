@@ -565,6 +565,56 @@ const TestResult = () => {
                   </div>
                 </div>
               )}
+
+              {/* Class Average */}
+              {result.average_score !== null && result.average_score !== undefined && (
+                <div
+                  className="average-display"
+                  style={{
+                    marginTop: "12px",
+                    padding: "12px",
+                    background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
+                    borderRadius: "8px",
+                    border: "1px solid #bae6fd",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span style={{ fontWeight: "bold", color: "#0369a1" }}>
+                      📊 متوسط الصف:
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: "bold",
+                        fontSize: "1.2em",
+                        color: "#0284c7",
+                      }}
+                    >
+                      {Math.floor(parseFloat(result.average_score))}%
+                      {(() => {
+                        const ca = result.correct_answers_visible;
+                        if (!ca) return null;
+                        let total = 0;
+                        if (result.test_type === "MCQ") {
+                          total = (ca.questions || []).length;
+                        } else {
+                          total = Object.keys(ca.answers || {}).length;
+                        }
+                        if (total > 0) {
+                          const avgCorrect = Math.floor((parseFloat(result.average_score) / 100) * total);
+                          return <span style={{ fontSize: "0.85em", marginRight: "8px" }}>({avgCorrect}/{total})</span>;
+                        }
+                        return null;
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
