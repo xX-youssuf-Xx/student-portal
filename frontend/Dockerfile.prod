@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install system dependencies and Bun
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl unzip \
+    ca-certificates curl unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://bun.sh/install | bash
@@ -31,7 +31,7 @@ WORKDIR /app
 
 # Install Bun
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl unzip \
+    ca-certificates curl unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://bun.sh/install | bash

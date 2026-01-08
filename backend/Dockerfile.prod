@@ -34,7 +34,7 @@ RUN bun run build
 # Install Python dependencies for grading service
 WORKDIR /app/grading_service
 COPY grading_service/requirements.txt ./
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 WORKDIR /app
 
@@ -69,7 +69,7 @@ COPY --from=builder --chown=bunjs:bunjs /app/package.json ./
 COPY --from=builder --chown=bunjs:bunjs /app/grading_service ./grading_service
 
 # Install Python packages in production
-RUN pip3 install --no-cache-dir --break-system-packages -r grading_service/requirements.txt
+RUN pip3 install --no-cache-dir -r grading_service/requirements.txt
 
 # Create directories for uploads and grading outputs
 RUN mkdir -p /app/uploads /app/grading_service/tests && \
