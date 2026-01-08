@@ -3,8 +3,13 @@ FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
-# Install Python and build dependencies for grading service
-RUN apk add --no-cache python3 py3-pip python3-dev g++ make cmake libffi-dev
+# Install Python and build dependencies for grading service + sharp/pdf2pic native deps
+RUN apk add --no-cache \
+    python3 py3-pip python3-dev \
+    g++ make cmake libffi-dev \
+    vips-dev \
+    ghostscript \
+    graphicsmagick
 
 # Copy package files
 COPY package.json bun.lock* ./
@@ -28,8 +33,13 @@ FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Install Python runtime and OpenCV dependencies
-RUN apk add --no-cache python3 py3-pip libstdc++ libgomp
+# Install Python runtime, OpenCV dependencies, and sharp/pdf2pic runtime deps
+RUN apk add --no-cache \
+    python3 py3-pip \
+    libstdc++ libgomp \
+    vips \
+    ghostscript \
+    graphicsmagick
 
 # Create non-root user
 RUN addgroup -g 1001 -S bunjs && \
