@@ -51,8 +51,8 @@ COPY --chown=bunjs:bunjs server-prod.ts server.ts
 USER bunjs
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD bun -e "fetch('http://localhost:3017').then(r => { if (!r.ok) throw new Error(r.status) })" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=5 \
+    CMD bun -e "const res = await fetch('http://localhost:3017'); if (!res.ok) throw new Error('HTTP ' + res.status)" || exit 1
 
 # Expose port
 EXPOSE 3017
