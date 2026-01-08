@@ -887,9 +887,9 @@ class TestService {
       const student = studentResult.rows[0];
       console.log(`Fetching tests for student ${studentId} (grade: ${student.grade}, group: ${student.student_group})`);
       
-      // Since start_time/end_time are stored as Cairo wall-time in TIMESTAMP (no timezone),
-      // we need to compare with Cairo time, not server time.
-      // CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' gives us Cairo's current wall-time.
+      // Show tests that haven't ended yet (including upcoming tests before start_time)
+      // Students will see countdown timers for upcoming tests
+      // They can only take tests that are currently active (between start_time and end_time)
       const query = `
         WITH student_submissions AS (
           SELECT test_id, true as is_submitted, created_at as submitted_at
@@ -900,12 +900,16 @@ class TestService {
           t.*, 
           COALESCE(ss.is_submitted, false) as is_submitted,
           ss.submitted_at,
-          CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' as cairo_now
+          CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' as cairo_now,
+          CASE 
+            WHEN t.start_time > (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') THEN 'upcoming'
+            WHEN t.end_time < (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') THEN 'ended'
+            ELSE 'active'
+          END as test_status
         FROM tests t
         LEFT JOIN student_submissions ss ON t.id = ss.test_id
         WHERE t.grade = $2
           AND (t.student_group IS NULL OR t.student_group = $3)
-          AND t.start_time <= (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo')
           AND t.end_time >= (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo')
         ORDER BY t.start_time ASC
       `;
@@ -936,7 +940,7 @@ class TestService {
         const endTimeLocal = formatLocal(test.end_time);
         
         // Debug logging
-        console.log(`[getAvailableTests] Test ${test.id}: raw start_time=${test.start_time}, startTimeLocal=${startTimeLocal}, UTC=${formatUtc(startTimeLocal)}`);
+        console.log(`[getAvailableTests] Test ${test.id}: status=${test.test_status}, raw start_time=${test.start_time}, startTimeLocal=${startTimeLocal}`);
         
         // Use wall-time string to compute correct UTC (appends +02:00)
         return {
@@ -947,7 +951,8 @@ class TestService {
           end_time_utc: formatUtc(endTimeLocal),
           start_time_ms: formatMs(startTimeLocal),
           end_time_ms: formatMs(endTimeLocal),
-          is_submitted: test.is_submitted || false
+          is_submitted: test.is_submitted || false,
+          test_status: test.test_status // 'upcoming', 'active', or 'ended'
         };
       });
     } catch (error) {

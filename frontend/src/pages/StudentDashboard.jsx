@@ -336,11 +336,19 @@ const StudentDashboard = () => {
               </div>
             ) : (
               <div className="tests-grid">
-                {availableTests.map(test => (
-                  <div key={test.id} className="test-card">
+                {availableTests.map(test => {
+                  // Use test_status from backend, or compute from timestamps
+                  const isUpcoming = test.test_status === 'upcoming' || Date.now() < (test.start_time_ms || 0);
+                  const isActive = test.test_status === 'active' || (Date.now() >= (test.start_time_ms || 0) && Date.now() < (test.end_time_ms || 0));
+                  const isEnded = test.test_status === 'ended' || Date.now() >= (test.end_time_ms || 0);
+                  
+                  return (
+                  <div key={test.id} className={`test-card ${isUpcoming ? 'upcoming' : ''} ${isActive ? 'active' : ''}`}>
                     <div className="test-header">
                       <h3>{test.title}</h3>
-                      <span className="test-type">{getTestTypeLabel(test.test_type)}</span>
+                      <span className={`test-type ${isUpcoming ? 'upcoming' : ''} ${isActive ? 'active' : ''}`}>
+                        {isUpcoming ? '🕐 قادم' : isActive ? '🟢 متاح الآن' : getTestTypeLabel(test.test_type)}
+                      </span>
                     </div>
                     <div className="test-details">
                       <p><strong>وقت البداية:</strong> {formatDate(test.start_time)}</p>
@@ -351,26 +359,26 @@ const StudentDashboard = () => {
                     </div>
                     
                     {/* Countdown Timers */}
-                    {Date.now() < (test.start_time_ms || 0) && (
+                    {isUpcoming && (
                       <CountdownTimer targetMs={test.start_time_ms} type="start" />
                     )}
-                    {Date.now() >= (test.start_time_ms || 0) && Date.now() < (test.end_time_ms || 0) && (
+                    {isActive && (
                       <CountdownTimer targetMs={test.end_time_ms} type="end" />
                     )}
                     
                     <div className="test-actions">
                         <button
-                          className="btn-start-test"
-                          onClick={() => startTest(test.id)}
-                          disabled={Date.now() < (test.start_time_ms || 0) || Date.now() > (test.end_time_ms || 0)}
+                          className={`btn-start-test ${isUpcoming ? 'disabled upcoming' : ''} ${isActive ? 'active' : ''}`}
+                          onClick={() => isActive && startTest(test.id)}
+                          disabled={!isActive}
                         >
-                          {Date.now() > (test.end_time_ms || 0) ? 'انتهى وقت الاختبار' :
-                           Date.now() < (test.start_time_ms || 0) ? 'لم يبدأ الاختبار بعد' : '🚀 بدء الاختبار'}
+                          {isEnded ? '⛔ انتهى وقت الاختبار' :
+                           isUpcoming ? '⏳ الاختبار لم يبدأ بعد' : '🚀 بدء الاختبار'}
                         </button>
-                      
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
