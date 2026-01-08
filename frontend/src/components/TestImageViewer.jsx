@@ -84,7 +84,7 @@ const TestImageViewer = ({ testId }) => {
        <div className="image-container">
          {images.length > 0 && (
            <img 
-             src={`${import.meta.env.VITE_API_BASE_URL || "https://studentportal.elvicsolutions.net"}/` + (images[currentIndex].image_url || images[currentIndex].image_path)} 
+             src={`${import.meta.env.VITE_API_BASE_URL || "https://studentportal.8bitsolutions.net"}/` + (images[currentIndex].image_url || images[currentIndex].image_path)} 
              alt={`Test Page ${currentIndex + 1}`}
              className="test-image"
            />

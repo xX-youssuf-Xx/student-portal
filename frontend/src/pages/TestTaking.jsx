@@ -1073,7 +1073,7 @@ const TestTaking = () => {
               (a) => a.id === question.id
             )?.answer;
 
-             const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.elvicsolutions.net";
+             const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.8bitsolutions.net";
              const image = test.images?.find(img => img.display_order === question.media_index);
              const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
 

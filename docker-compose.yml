@@ -35,7 +35,7 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - GRADING_SCRIPT_DIR=/app/grading_service
-      - CORS_ORIGIN=https://studentportal.elvicsolutions.net
+      - CORS_ORIGIN=https://studentportal.8bitsolutions.net
     volumes:
       - uploads_data:/app/uploads
       - grading_tests:/app/grading_service/tests
