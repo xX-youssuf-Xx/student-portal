@@ -22,6 +22,10 @@ const StudentManagement = () => {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsData, setResultsData] = useState({ student: null, results: [] });
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+  
 
   useEffect(() => {
     fetchStudents();
@@ -200,6 +204,44 @@ const StudentManagement = () => {
     });
   }, [students, searchTerm, gradeFilter, groupFilter]);
 
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, gradeFilter, groupFilter, itemsPerPage]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
+
   return (
     <div className="student-management">
       <div className="student-management-header">
@@ -227,10 +269,24 @@ const StudentManagement = () => {
           <option value="RIYAD">رياض</option>
           <option value="MEET-HADID">ميت حديد</option>
         </select>
+        <div className="per-page-selector">
+          <label>عرض:</label>
+          <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))}>
+            <option value={6}>6</option>
+            <option value={12}>12</option>
+            <option value={24}>24</option>
+            <option value={48}>48</option>
+            <option value={100}>100</option>
+          </select>
+          <span>لكل صفحة</span>
+        </div>
+        <div className="results-count">
+          إجمالي: {filteredStudents.length} طالب
+        </div>
       </div>
 
       <div className="student-list">
-        {filteredStudents.map(student => (
+        {paginatedStudents.map(student => (
           <StudentCard
             key={student.id}
             student={student}
@@ -240,6 +296,61 @@ const StudentManagement = () => {
           />
         ))}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button
+            className="pagination-btn"
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+          >
+            الأولى
+          </button>
+          <button
+            className="pagination-btn"
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            السابق
+          </button>
+          
+          <div className="pagination-pages">
+            {getPageNumbers().map((page, index) => (
+              page === '...' ? (
+                <span key={`ellipsis-${index}`} className="pagination-ellipsis">...</span>
+              ) : (
+                <button
+                  key={page}
+                  className={`pagination-page ${currentPage === page ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </button>
+              )
+            ))}
+          </div>
+          
+          <button
+            className="pagination-btn"
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+          >
+            التالي
+          </button>
+          <button
+            className="pagination-btn"
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+          >
+            الأخيرة
+          </button>
+          
+          <span className="pagination-info">
+            صفحة {currentPage} من {totalPages}
+          </span>
+        </div>
+      )}
 
       <StudentModal
         isOpen={isModalOpen}

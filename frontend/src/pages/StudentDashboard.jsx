@@ -7,6 +7,75 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
+// Countdown Timer Component
+const CountdownTimer = ({ targetMs, type }) => {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [isExpired, setIsExpired] = useState(false);
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = Date.now();
+      const difference = targetMs - now;
+
+      if (difference <= 0) {
+        setIsExpired(true);
+        return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+      }
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      return { days, hours, minutes, seconds };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+    setIsExpired(targetMs <= Date.now());
+
+    const timer = setInterval(() => {
+      const newTimeLeft = calculateTimeLeft();
+      setTimeLeft(newTimeLeft);
+      if (targetMs <= Date.now()) {
+        setIsExpired(true);
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [targetMs]);
+
+  if (isExpired) {
+    return null;
+  }
+
+  const formatNumber = (num) => String(num).padStart(2, '0');
+
+  return (
+    <div className={`countdown-timer ${type}`}>
+      <span className="countdown-label">
+        {type === 'start' ? '⏳ يبدأ بعد:' : '⏰ ينتهي بعد:'}
+      </span>
+      <div className="countdown-values">
+        {timeLeft.days > 0 && (
+          <span className="countdown-unit">
+            <strong>{timeLeft.days}</strong> يوم
+          </span>
+        )}
+        <span className="countdown-unit">
+          <strong>{formatNumber(timeLeft.hours)}</strong>س
+        </span>
+        <span className="countdown-unit">
+          <strong>{formatNumber(timeLeft.minutes)}</strong>د
+        </span>
+        <span className="countdown-unit">
+          <strong>{formatNumber(timeLeft.seconds)}</strong>ث
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const StudentDashboard = () => {
   const { user } = useAuth();
   const [availableTests, setAvailableTests] = useState([]);
@@ -280,6 +349,15 @@ const StudentDashboard = () => {
                         <p><strong>المدة:</strong> {test.duration_minutes} دقيقة</p>
                       )}
                     </div>
+                    
+                    {/* Countdown Timers */}
+                    {Date.now() < (test.start_time_ms || 0) && (
+                      <CountdownTimer targetMs={test.start_time_ms} type="start" />
+                    )}
+                    {Date.now() >= (test.start_time_ms || 0) && Date.now() < (test.end_time_ms || 0) && (
+                      <CountdownTimer targetMs={test.end_time_ms} type="end" />
+                    )}
+                    
                     <div className="test-actions">
                         <button
                           className="btn-start-test"

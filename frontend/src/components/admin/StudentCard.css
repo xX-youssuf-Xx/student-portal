@@ -4,13 +4,17 @@
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   padding: 20px;
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
 }
 
 .student-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 15px;
+  gap: 12px;
 }
 
 .student-card-header h3 {
@@ -19,6 +23,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .student-id {
@@ -28,6 +36,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .copy-id-btn {
@@ -48,13 +57,21 @@
   background-color: rgba(0, 123, 255, 0.1);
 }
 
+.student-card-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .student-card-actions .edit-btn,
 .student-card-actions .delete-btn {
   border: none;
   padding: 8px 12px;
   border-radius: 5px;
   cursor: pointer;
-  margin-left: 10px;
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 .edit-btn {
@@ -65,6 +82,10 @@
 .delete-btn {
   background-color: #dc3545;
   color: white;
+}
+
+.student-card-body {
+  flex: 1;
 }
 
 .student-card-body p {

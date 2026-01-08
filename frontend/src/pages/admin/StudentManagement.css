@@ -32,25 +32,133 @@
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 15px;
   margin-bottom: 30px;
   background-color: #f8f9fa;
   padding: 20px;
   border-radius: 8px;
+  align-items: center;
 }
 
 .filters input,
-.filters select {
+.filters > select {
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 5px;
   min-width: 200px;
 }
 
+.per-page-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.per-page-selector label {
+  color: #666;
+  font-size: 14px;
+}
+
+.per-page-selector select {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  min-width: 70px;
+}
+
+.per-page-selector span {
+  color: #666;
+  font-size: 14px;
+}
+
+.results-count {
+  color: #007bff;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 16px;
+  background-color: #e7f3ff;
+  border-radius: 20px;
+}
+
 .student-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 30px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.pagination-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  background-color: #fff;
+  color: #333;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.pagination-page {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #ddd;
+  background-color: #fff;
+  color: #333;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.pagination-page:hover {
+  background-color: #e9ecef;
+}
+
+.pagination-page.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.pagination-ellipsis {
+  padding: 0 8px;
+  color: #666;
+}
+
+.pagination-info {
+  margin-right: 16px;
+  color: #666;
+  font-size: 14px;
 }
 
 /* Toast notifications */

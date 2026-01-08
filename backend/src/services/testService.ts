@@ -27,9 +27,9 @@ const formatLocal = (d: Date | string | null) => {
 // admins save naive local timestamps, we explicitly append the server's
 // timezone offset (e.g. "+02:00") before parsing when no timezone is present.
 const hasTimezoneSuffix = (s: string) => /[zZ]$|[+\-]\d{2}:?\d{2}$/.test(s);
-// By default we parse timezone-naive timestamps as Cairo time (UTC+03:00).
-// This can be overridden by setting PARSE_TIMEZONE environment variable
-// to a value like "+02:00" or "+03:00".
+// By default we parse timezone-naive timestamps as Cairo time (UTC+02:00).
+// Egypt stopped observing DST in 2014, so it's always UTC+2.
+// This can be overridden by setting PARSE_TIMEZONE environment variable.
 const parseTimezoneSuffix = () => {
   const env = process.env.PARSE_TIMEZONE;
   if (env && typeof env === 'string' && /^[+-]\d{2}:?\d{2}$/.test(env)) {
@@ -37,7 +37,7 @@ const parseTimezoneSuffix = () => {
     const cleaned = env.includes(':') ? env : `${env.slice(0,3)}:${env.slice(3)}`;
     return cleaned;
   }
-  return '+03:00'; // Cairo (UTC+3)
+  return '+02:00'; // Cairo (UTC+2, EET - Egypt stopped DST in 2014)
 };
 
 const formatUtc = (d: Date | string | null) => {
@@ -70,10 +70,11 @@ const formatMs = (d: Date | string | null) => {
   }
 };
 
-// Helper: return current Cairo local timestamp string (UTC+03:00)
+// Helper: return current Cairo local timestamp string (UTC+02:00)
+// Egypt is always UTC+2 (EET) - stopped observing DST in 2014
 const nowLocalString = () => {
   const d = new Date();
-  const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours for Cairo (UTC+3)
+  const cairoOffsetMs = 2 * 60 * 60 * 1000; // +2 hours for Cairo (UTC+2)
   const cairoDate = new Date(d.getTime() + cairoOffsetMs);
   const yyyy = cairoDate.getFullYear();
   const mm = pad(cairoDate.getMonth() + 1);
@@ -81,7 +82,7 @@ const nowLocalString = () => {
   const hh = pad(cairoDate.getHours());
   const mi = pad(cairoDate.getMinutes());
   const ss = pad(cairoDate.getSeconds());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+03:00`; // Added explicit timezone (UTC+3)
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+02:00`; // Cairo timezone (UTC+2)
 };
 
 interface CreateTestData {
@@ -458,6 +459,18 @@ class TestService {
     return this.normalizeSubmission(updRes.rows[0]);
   }
   async createTest(testData: CreateTestData): Promise<Test> {
+    // Ensure times have Cairo timezone (+02:00) if no timezone is specified
+    // Egypt is always UTC+2 (EET) - stopped observing DST in 2014
+    const ensureCairoTimezone = (timeStr: string) => {
+      if (!timeStr) return timeStr;
+      if (hasTimezoneSuffix(timeStr)) return timeStr;
+      // Append Cairo timezone offset (UTC+2)
+      return timeStr + '+02:00';
+    };
+
+    const startTimeWithTz = ensureCairoTimezone(testData.start_time);
+    const endTimeWithTz = ensureCairoTimezone(testData.end_time);
+
     const query = `
       INSERT INTO tests (
         title, grade, student_group, test_type, start_time, end_time, 
@@ -471,8 +484,8 @@ class TestService {
       testData.grade,
       testData.student_group || null,
       testData.test_type,
-      testData.start_time,
-      testData.end_time,
+      startTimeWithTz,
+      endTimeWithTz,
       testData.duration_minutes || null,
       testData.correct_answers || null,
       testData.view_type,
@@ -650,6 +663,24 @@ class TestService {
   }
 
   async updateTest(testId: number, testData: Partial<CreateTestData>): Promise<Test | null> {
+    // Ensure times have Cairo timezone (+02:00) if no timezone is specified
+    // Egypt is always UTC+2 (EET) - stopped observing DST in 2014
+    const ensureCairoTimezone = (timeStr: string | undefined) => {
+      if (!timeStr) return timeStr;
+      if (hasTimezoneSuffix(timeStr)) return timeStr;
+      // Append Cairo timezone offset (UTC+2)
+      return timeStr + '+02:00';
+    };
+
+    // Pre-process time fields to add timezone
+    const processedData = { ...testData };
+    if (processedData.start_time) {
+      processedData.start_time = ensureCairoTimezone(processedData.start_time) as string;
+    }
+    if (processedData.end_time) {
+      processedData.end_time = ensureCairoTimezone(processedData.end_time) as string;
+    }
+
     // Only allow updating known columns. Map common client keys to DB column names.
     const allowedFields = new Set([
       'title', 'grade', 'student_group', 'test_type', 'start_time', 'end_time',
@@ -669,7 +700,7 @@ class TestService {
     let correctAnswersChanged = false;
     let newCorrectAnswers: any = null;
 
-    Object.entries(testData).forEach(([key, value]) => {
+    Object.entries(processedData).forEach(([key, value]) => {
       if (value === undefined) return;
       const mappedKey = (keyMap[key] as string) || key;
       // Ignore unknown fields to prevent SQL errors
@@ -686,7 +717,7 @@ class TestService {
         return; // Skip updating enum fields if they're empty strings or null
       }
 
-      if (mappedKey === 'view_permission' && testData.view_type === 'IMMEDIATE') {
+      if (mappedKey === 'view_permission' && processedData.view_type === 'IMMEDIATE') {
         // For IMMEDIATE tests, always set view_permission to true
         fields.push(`${mappedKey} = $${paramCount}`);
         values.push(true);
@@ -698,7 +729,7 @@ class TestService {
     });
 
     // If view_type is being set to IMMEDIATE, ensure view_permission is true
-    if (testData.view_type === 'IMMEDIATE' && !fields.some(f => f.includes('view_permission'))) {
+    if (processedData.view_type === 'IMMEDIATE' && !fields.some(f => f.includes('view_permission'))) {
       fields.push(`view_permission = $${paramCount}`);
       values.push(true);
       paramCount++;
@@ -840,14 +871,8 @@ class TestService {
       const student = studentResult.rows[0];
       console.log(`Fetching tests for student ${studentId} (grade: ${student.grade}, group: ${student.student_group})`);
       
-      // Get current time in Cairo timezone (UTC+3)
-      const cairoOffsetMs = 3 * 60 * 60 * 1000; // +3 hours for Cairo (UTC+3)
-      const nowCairoMs = Date.now() + cairoOffsetMs;
-      const nowCairoDate = new Date(nowCairoMs);
-      
-      // Format current time for SQL query (YYYY-MM-DDTHH:MM:SS+03:00)
-      const nowCairoString = `${nowCairoDate.getUTCFullYear()}-${pad(nowCairoDate.getUTCMonth() + 1)}-${pad(nowCairoDate.getUTCDate())}T${pad(nowCairoDate.getUTCHours())}:${pad(nowCairoDate.getUTCMinutes())}:${pad(nowCairoDate.getUTCSeconds())}+03:00`;
-      
+      // Use CURRENT_TIMESTAMP directly in SQL - PostgreSQL handles timezone conversion
+      // This compares the stored timestamps directly in the database
       // Fetch tests that match student's grade/group and are within the time window
       const query = `
         WITH student_submissions AS (
@@ -863,17 +888,16 @@ class TestService {
         LEFT JOIN student_submissions ss ON t.id = ss.test_id
         WHERE t.grade = $2
           AND (t.student_group IS NULL OR t.student_group = $3)
-          AND t.start_time <= $4
-          AND t.end_time >= $4
+          AND t.start_time <= CURRENT_TIMESTAMP
+          AND t.end_time >= CURRENT_TIMESTAMP
         ORDER BY t.start_time ASC
       `;
 
-      console.log('Executing query with params:', [studentId, student.grade, student.student_group, nowCairoString]);
+      console.log('Executing query with params:', [studentId, student.grade, student.student_group]);
       const result = await database.query(query, [
         studentId, 
         student.grade, 
-        student.student_group,
-        nowCairoString
+        student.student_group
       ]);
       
       const tests = result.rows || [];
