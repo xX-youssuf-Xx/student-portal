@@ -238,11 +238,21 @@ class TestService {
 
       // Run the grading script
       const args = ['app.py', '-n', String(nQuestions), '-t', String(testId), '-s', String(studentId), '-o', outDir, '-i', fullImagePath];
+      console.log(`[REGRADE] Running Python script for submission ${submissionId}`);
+      console.log(`[REGRADE] Command: ${pyExec} ${args.join(' ')}`);
+      console.log(`[REGRADE] Working directory: ${scriptDir}`);
+      console.log(`[REGRADE] Input image: ${fullImagePath}`);
 
       await new Promise<void>((resolve) => {
         const child = spawn(pyExec, args, { cwd: scriptDir, stdio: 'inherit', shell: process.platform === 'win32' });
-        child.on('close', () => resolve());
-        child.on('error', () => resolve());
+        child.on('close', (code) => {
+          console.log(`[REGRADE] Python script finished for submission ${submissionId} with exit code: ${code}`);
+          resolve();
+        });
+        child.on('error', (err) => {
+          console.error(`[REGRADE] Python script error for submission ${submissionId}:`, err);
+          resolve();
+        });
       });
 
       // Read the output JSON
@@ -297,6 +307,8 @@ class TestService {
     namesAsIds?: boolean;
   }): Promise<Array<{ student_id: number; submission_id: number; score: number | null; output_dir: string }>> {
     const { testId, nQuestions, studentsOrdered, files, namesAsIds } = params;
+    console.log(`[GRADING] Starting batch grading for test ${testId}`);
+    console.log(`[GRADING] Number of questions: ${nQuestions}, Students: ${studentsOrdered.length}, Files: ${files.length}, namesAsIds: ${namesAsIds}`);
 
     // Determine python executable based on platform
     const pyExec = process.platform === 'win32' ? 'python' : 'python3';
@@ -369,11 +381,21 @@ class TestService {
       fs.mkdirSync(outDir, { recursive: true });
 
       const args = ['app.py', '-n', String(nQuestions), '-t', String(testId), '-s', String(studentId), '-o', outDir, '-i', path.resolve(chosen.path)];
+      console.log(`[GRADING] Running Python script for student ${studentId}`);
+      console.log(`[GRADING] Command: ${pyExec} ${args.join(' ')}`);
+      console.log(`[GRADING] Working directory: ${scriptDir}`);
+      console.log(`[GRADING] Output directory: ${outDir}`);
 
       await new Promise<void>((resolve) => {
         const child = spawn(pyExec, args, { cwd: scriptDir, stdio: 'inherit', shell: process.platform === 'win32' });
-        child.on('close', () => resolve());
-        child.on('error', () => resolve());
+        child.on('close', (code) => {
+          console.log(`[GRADING] Python script finished for student ${studentId} with exit code: ${code}`);
+          resolve();
+        });
+        child.on('error', (err) => {
+          console.error(`[GRADING] Python script error for student ${studentId}:`, err);
+          resolve();
+        });
       });
 
       // After script finishes, read JSON and image

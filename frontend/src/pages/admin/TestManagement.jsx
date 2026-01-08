@@ -260,7 +260,7 @@ const TestManagement = () => {
                 {test.duration_minutes && (
                   <p><strong>المدة:</strong> {test.duration_minutes} دقيقة</p>
                 )}
-                {test.average_score !== null && test.average_score !== undefined && (
+                {test.average_score !== null && test.average_score !== undefined && Number(test.submission_count) > 0 && (
                   <p className="average-score">
                     <strong>📊 المتوسط:</strong> {Math.floor(Number(test.average_score))}%
                     {test.correct_answers?.answers && (

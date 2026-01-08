@@ -1073,9 +1073,12 @@ const TestTaking = () => {
               (a) => a.id === question.id
             )?.answer;
 
-             const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.8bitsolutions.net";
+             // Get base URL and clean it (remove trailing slash and /api suffix)
+             let API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.8bitsolutions.net";
+             API_BASE = API_BASE.replace(/\/api\/?$/, '').replace(/\/$/, '');
              const image = test.images?.find(img => img.display_order === question.media_index);
-             const imageUrl = image ? `${API_BASE}/${image.image_path.replace(/\\/g, '/')}` : null;
+             const imagePath = image?.image_path?.replace(/\\/g, '/').replace(/^\//, '') || '';
+             const imageUrl = image ? `${API_BASE}/${imagePath}` : null;
 
             return (
               <div
