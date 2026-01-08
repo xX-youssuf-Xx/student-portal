@@ -15,7 +15,7 @@ import TestTaking from './pages/TestTaking';
 import TestResult from './pages/TestResult';
 import './App.css';
 
-// Protected Route Component
+// Protected Route  Component
 const ProtectedRoute = ({ children, allowedTypes }) => {
   const { user, loading } = useAuth();
   
