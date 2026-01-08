@@ -28,4 +28,4 @@ serve({
   },
 });
 
-console.log("Frontend running on http://localhost:3017");
+console.log("Student Portal Frontend running on http://localhost:3017");
