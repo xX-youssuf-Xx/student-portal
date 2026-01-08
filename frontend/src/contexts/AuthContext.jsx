@@ -6,6 +6,19 @@ const API_BASE_URL = 'https://studentportal.8bitsolutions.net/api';
 axios.defaults.baseURL = API_BASE_URL;
 console.log('✅ AuthContext loaded with API_BASE_URL:', API_BASE_URL);
 
+// Add axios response interceptor to log responses
+axios.interceptors.response.use(
+  response => {
+    console.log('✅ API Response:', response.config.url, response.status, response.data);
+    return response;
+  },
+  error => {
+    console.error('❌ API Error:', error.config?.url, error.response?.status, error.response?.data);
+    console.error('Error details:', error.message);
+    return Promise.reject(error);
+  }
+);
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
