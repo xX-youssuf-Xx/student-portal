@@ -1,15 +1,6 @@
-# Build stage
-FROM ubuntu:22.04 AS builder
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
-
-# Install system dependencies and Bun
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
 
 # Copy package files
 COPY package.json bun.lock* ./
@@ -24,24 +15,16 @@ COPY . .
 # Build the Vite application
 RUN bun run build
 
-# Production stage
-FROM ubuntu:22.04
+# Production stage - serve with lightweight server
+FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Install Bun
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
-
 # Create non-root user
-RUN groupadd -g 1001 bunjs && \
-    useradd -m -u 1001 -g bunjs bunjs
+RUN addgroup -g 1001 -S bunjs && \
+    adduser -S bunjs -u 1001
 
-# Copy built artifacts
+# Copy built artifacts from builder
 COPY --from=builder --chown=bunjs:bunjs /app/dist ./dist
 
 # Copy production server script
@@ -50,12 +33,12 @@ COPY --chown=bunjs:bunjs server-prod.ts server.ts
 # Switch to non-root user
 USER bunjs
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=5 \
-    CMD bun -e "const res = await fetch('http://localhost:3017'); if (!res.ok) throw new Error('HTTP ' + res.status)" || exit 1
-
 # Expose port
 EXPOSE 3017
 
+# Health check (simple and reliable)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD bun run --eval "fetch('http://localhost:3017').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))" || exit 1
+
 # Start server
-CMD ["bun", "run", "server.ts"]
+CMD ["bun", "server.ts"]
