@@ -78,10 +78,6 @@ RUN mkdir -p /app/uploads /app/grading_service/tests && \
 # Switch to non-root user
 USER bunjs
 
-# Health check (allow server time to start and connect to DB)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
-    CMD bun -e "const res = await fetch('http://localhost:3016/api/health'); if (!res.ok) throw new Error('HTTP ' + res.status)" || exit 1
-
 # Expose port
 EXPOSE 3016
 
