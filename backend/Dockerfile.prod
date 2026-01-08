@@ -65,14 +65,14 @@ USER bunjs
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD bun -e "fetch('http://localhost:3001/api/health').then(r => { if (!r.ok) throw new Error(r.status) })" || exit 1
+    CMD bun -e "fetch('http://localhost:3016/api/health').then(r => { if (!r.ok) throw new Error(r.status) })" || exit 1
 
 # Expose port
-EXPOSE 3001
+EXPOSE 3016
 
 # Environment variables (to be overridden in Dokploy)
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3016
 ENV GRADING_SCRIPT_DIR=/app/grading_service
 
 # Start application

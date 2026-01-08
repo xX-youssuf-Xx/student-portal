@@ -5,7 +5,7 @@
 const dist = "./dist/";
 
 const server = Bun.serve({
-  port: 3010,
+  port: 3017,
   async fetch(request) {
     const url = new URL(request.url);
     const pathname = url.pathname;
