@@ -471,6 +471,9 @@ class TestService {
     const startTimeWithTz = ensureCairoTimezone(testData.start_time);
     const endTimeWithTz = ensureCairoTimezone(testData.end_time);
 
+    console.log(`[createTest] Input start_time: ${testData.start_time} -> With TZ: ${startTimeWithTz}`);
+    console.log(`[createTest] Input end_time: ${testData.end_time} -> With TZ: ${endTimeWithTz}`);
+
     const query = `
       INSERT INTO tests (
         title, grade, student_group, test_type, start_time, end_time, 
@@ -498,14 +501,18 @@ class TestService {
     // Format timestamps as local wall-time strings before returning
     const row = result.rows[0];
     if (row) {
-  // keep local wall-time for backward compatibility
-  row.start_time = formatLocal(row.start_time);
-  row.end_time = formatLocal(row.end_time);
-  // also include unambiguous UTC ISO and epoch ms
-  row.start_time_utc = formatUtc(row.start_time);
-  row.end_time_utc = formatUtc(row.end_time);
-  row.start_time_ms = formatMs(row.start_time);
-  row.end_time_ms = formatMs(row.end_time);
+      console.log(`[createTest] DB returned start_time: ${row.start_time}, type: ${typeof row.start_time}, instanceof Date: ${row.start_time instanceof Date}`);
+      
+      // keep local wall-time for backward compatibility
+      row.start_time = formatLocal(row.start_time);
+      row.end_time = formatLocal(row.end_time);
+      // also include unambiguous UTC ISO and epoch ms
+      row.start_time_utc = formatUtc(row.start_time);
+      row.end_time_utc = formatUtc(row.end_time);
+      row.start_time_ms = formatMs(row.start_time);
+      row.end_time_ms = formatMs(row.end_time);
+      
+      console.log(`[createTest] Final: start_time=${row.start_time}, start_time_utc=${row.start_time_utc}, start_time_ms=${row.start_time_ms}`);
     }
     return row;
   }
@@ -527,14 +534,23 @@ class TestService {
     // For each test, fetch images
     const withImages = await Promise.all(
       tests.map(async (r) => {
+        // First get the wall-time string (e.g., "2026-01-08T21:35")
+        const startTimeLocal = formatLocal(r.start_time);
+        const endTimeLocal = formatLocal(r.end_time);
+        
+        // Debug logging
+        console.log(`[getAllTests] Test ${r.id}: raw start_time=${r.start_time}, type=${typeof r.start_time}, instanceof Date=${r.start_time instanceof Date}`);
+        console.log(`[getAllTests] Test ${r.id}: startTimeLocal=${startTimeLocal}, computed UTC=${formatUtc(startTimeLocal)}`);
+        
+        // Use the LOCAL wall-time string to compute UTC (so +02:00 is appended correctly)
         const formatted = {
           ...r,
-          start_time: formatLocal(r.start_time),
-          end_time: formatLocal(r.end_time),
-          start_time_utc: formatUtc(r.start_time),
-          end_time_utc: formatUtc(r.end_time),
-          start_time_ms: formatMs(r.start_time),
-          end_time_ms: formatMs(r.end_time),
+          start_time: startTimeLocal,
+          end_time: endTimeLocal,
+          start_time_utc: formatUtc(startTimeLocal),  // Use wall-time string, not raw Date
+          end_time_utc: formatUtc(endTimeLocal),      // Use wall-time string, not raw Date
+          start_time_ms: formatMs(startTimeLocal),
+          end_time_ms: formatMs(endTimeLocal),
         };
   
         const images = await this.getTestImages(r.id);
@@ -871,9 +887,9 @@ class TestService {
       const student = studentResult.rows[0];
       console.log(`Fetching tests for student ${studentId} (grade: ${student.grade}, group: ${student.student_group})`);
       
-      // Use CURRENT_TIMESTAMP directly in SQL - PostgreSQL handles timezone conversion
-      // This compares the stored timestamps directly in the database
-      // Fetch tests that match student's grade/group and are within the time window
+      // Since start_time/end_time are stored as Cairo wall-time in TIMESTAMP (no timezone),
+      // we need to compare with Cairo time, not server time.
+      // CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' gives us Cairo's current wall-time.
       const query = `
         WITH student_submissions AS (
           SELECT test_id, true as is_submitted, created_at as submitted_at
@@ -883,17 +899,27 @@ class TestService {
         SELECT 
           t.*, 
           COALESCE(ss.is_submitted, false) as is_submitted,
-          ss.submitted_at
+          ss.submitted_at,
+          CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' as cairo_now
         FROM tests t
         LEFT JOIN student_submissions ss ON t.id = ss.test_id
         WHERE t.grade = $2
           AND (t.student_group IS NULL OR t.student_group = $3)
-          AND t.start_time <= CURRENT_TIMESTAMP
-          AND t.end_time >= CURRENT_TIMESTAMP
+          AND t.start_time <= (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo')
+          AND t.end_time >= (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo')
         ORDER BY t.start_time ASC
       `;
 
       console.log('Executing query with params:', [studentId, student.grade, student.student_group]);
+      
+      // Debug: check what times PostgreSQL sees
+      const debugQuery = `SELECT 
+        CURRENT_TIMESTAMP as server_now, 
+        CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' as cairo_now,
+        (SELECT start_time FROM tests WHERE id = (SELECT MAX(id) FROM tests)) as latest_test_start`;
+      const debugResult = await database.query(debugQuery);
+      console.log('[DEBUG] PostgreSQL times:', debugResult.rows[0]);
+      
       const result = await database.query(query, [
         studentId, 
         student.grade, 
@@ -905,19 +931,22 @@ class TestService {
       
       // Format the test data with consistent time fields
       return tests.map((test: any) => {
-        const startTime = new Date(test.start_time);
-        const endTime = new Date(test.end_time);
+        // Get wall-time strings first
+        const startTimeLocal = formatLocal(test.start_time);
+        const endTimeLocal = formatLocal(test.end_time);
         
-        // Use the exact times as set by admin, no timezone shifting
-        // The start_time and end_time from DB should be displayed as-is
+        // Debug logging
+        console.log(`[getAvailableTests] Test ${test.id}: raw start_time=${test.start_time}, startTimeLocal=${startTimeLocal}, UTC=${formatUtc(startTimeLocal)}`);
+        
+        // Use wall-time string to compute correct UTC (appends +02:00)
         return {
           ...test,
-          start_time: formatLocal(startTime),
-          end_time: formatLocal(endTime),
-          start_time_utc: startTime.toISOString(),
-          end_time_utc: endTime.toISOString(),
-          start_time_ms: startTime.getTime(),
-          end_time_ms: endTime.getTime(),
+          start_time: startTimeLocal,
+          end_time: endTimeLocal,
+          start_time_utc: formatUtc(startTimeLocal),
+          end_time_utc: formatUtc(endTimeLocal),
+          start_time_ms: formatMs(startTimeLocal),
+          end_time_ms: formatMs(endTimeLocal),
           is_submitted: test.is_submitted || false
         };
       });
