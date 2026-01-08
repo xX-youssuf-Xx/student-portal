@@ -1,0 +1,72 @@
+# Docker Compose for local development/testing
+# This is NOT for Dokploy - Dokploy uses individual Dockerfiles
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: studentportal-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: you2006
+      POSTGRES_DB: studentportal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/db.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: studentportal-backend
+    environment:
+      - DATABASE_URL=postgresql://postgres:you2006@db:5432/studentportal
+      - JWT_SECRET=9d103e3314ffe4d24004ef2837356e11
+      - PORT=3001
+      - NODE_ENV=production
+      - GRADING_SCRIPT_DIR=/app/grading_service
+      - CORS_ORIGIN=https://studentportal.elvicsolutions.net
+    volumes:
+      - uploads_data:/app/uploads
+      - grading_tests:/app/grading_service/tests
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3001/api/health').then(r => { if (!r.ok) throw new Error(r.status) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: studentportal-frontend
+    ports:
+      - "3010:3010"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3010').then(r => { if (!r.ok) throw new Error(r.status) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  uploads_data:
+  grading_tests:

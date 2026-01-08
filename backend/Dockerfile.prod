@@ -1,0 +1,69 @@
+# Build stage
+FROM oven/bun:1-alpine AS builder
+
+WORKDIR /app
+
+# Install Python and build dependencies for grading service
+RUN apk add --no-cache python3 py3-pip python3-dev g++ make cmake libffi-dev
+
+# Copy package files
+COPY package.json bun.lock* ./
+RUN bun install
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN bun run build
+
+# Install Python dependencies for grading service
+WORKDIR /app/grading_service
+COPY grading_service/requirements.txt ./
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+WORKDIR /app
+
+# Production stage
+FROM oven/bun:1-alpine
+
+WORKDIR /app
+
+# Install Python runtime and OpenCV dependencies
+RUN apk add --no-cache python3 py3-pip libstdc++ libgomp
+
+# Create non-root user
+RUN addgroup -g 1001 -S bunjs && \
+    adduser -S bunjs -u 1001
+
+# Copy built artifacts from builder
+COPY --from=builder --chown=bunjs:bunjs /app/dist ./dist
+COPY --from=builder --chown=bunjs:bunjs /app/node_modules ./node_modules
+COPY --from=builder --chown=bunjs:bunjs /app/package.json ./
+
+# Copy grading service
+COPY --from=builder --chown=bunjs:bunjs /app/grading_service ./grading_service
+
+# Install Python packages in production
+RUN pip3 install --no-cache-dir --break-system-packages -r grading_service/requirements.txt
+
+# Create directories for uploads and grading outputs
+RUN mkdir -p /app/uploads /app/grading_service/tests && \
+    chown -R bunjs:bunjs /app/uploads /app/grading_service/tests
+
+# Switch to non-root user
+USER bunjs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD bun -e "fetch('http://localhost:3001/api/health').then(r => { if (!r.ok) throw new Error(r.status) })" || exit 1
+
+# Expose port
+EXPOSE 3001
+
+# Environment variables (to be overridden in Dokploy)
+ENV NODE_ENV=production
+ENV PORT=3001
+ENV GRADING_SCRIPT_DIR=/app/grading_service
+
+# Start application
+CMD ["bun", "run", "dist/index.js"]

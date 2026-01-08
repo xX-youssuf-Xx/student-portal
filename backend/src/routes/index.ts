@@ -6,9 +6,13 @@ import testRoutes from './test';
 
 const router = Router();
 
-// Health check
+// Health check endpoints
 router.get('/', (req, res) => {
   res.json({ message: 'Student Portal API' });
+});
+
+router.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // API routes

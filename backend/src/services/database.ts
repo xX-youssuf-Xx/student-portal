@@ -53,13 +53,18 @@ class DatabaseService {
   private pool: Pool;
 
   constructor() {
-    this.pool = new Pool({
-      user: 'postgres',
-      host: 'localhost',
-      database: 'studentportal',
-      password: 'you2006', // Change this in production
-      port: 5432,
-    });
+    // Support DATABASE_URL (for Docker/production) or individual env vars
+    const connectionConfig = process.env.DATABASE_URL
+      ? { connectionString: process.env.DATABASE_URL }
+      : {
+          user: process.env.DB_USER || 'postgres',
+          host: process.env.DB_HOST || 'localhost',
+          database: process.env.DB_NAME || 'studentportal',
+          password: process.env.DB_PASSWORD || 'you2006',
+          port: parseInt(process.env.DB_PORT || '5432', 10),
+        };
+
+    this.pool = new Pool(connectionConfig);
 
     this.testConnection();
   }

@@ -1,0 +1,45 @@
+# Build stage
+FROM oven/bun:1-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json bun.lock* ./
+RUN bun install
+
+# Copy .env.production for build-time variables
+COPY .env.production .env.production
+
+# Copy source code
+COPY . .
+
+# Build the Vite application
+RUN bun run build
+
+# Production stage
+FROM oven/bun:1-alpine
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S bunjs && \
+    adduser -S bunjs -u 1001
+
+# Copy built artifacts
+COPY --from=builder --chown=bunjs:bunjs /app/dist ./dist
+
+# Copy production server script
+COPY --chown=bunjs:bunjs server-prod.ts server.ts
+
+# Switch to non-root user
+USER bunjs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD bun -e "fetch('http://localhost:3010').then(r => { if (!r.ok) throw new Error(r.status) })" || exit 1
+
+# Expose port
+EXPOSE 3010
+
+# Start server
+CMD ["bun", "run", "server.ts"]

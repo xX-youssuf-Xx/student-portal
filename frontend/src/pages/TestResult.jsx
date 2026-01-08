@@ -173,7 +173,7 @@ const TestResult = () => {
     const correctAnswers = result.correct_answers_visible.answers;
     const API_BASE =
       import.meta?.env?.VITE_API_BASE_URL ||
-      "https://studentportal.egypt-tech.com";
+      "https://studentportal.elvicsolutions.net";
 
     const imgSrc = studentAnswers?.bubble_image_path
       ? `${API_BASE}/${studentAnswers.bubble_image_path}`
@@ -245,7 +245,7 @@ const TestResult = () => {
       {};
 
     // Get test images to display with questions
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.egypt-tech.com";
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.elvicsolutions.net";
 
     return (
       <div className="answers-comparison">
@@ -604,7 +604,7 @@ const TestResult = () => {
           <div className="test-pdf-reference">
             <h3>ورقة الامتحان للمراجعة</h3>
             <iframe
-              src={`https://studentportal.egypt-tech.com/${result.pdf_file_path}`}
+              src={`${import.meta.env.VITE_API_BASE_URL || "https://studentportal.elvicsolutions.net"}/${result.pdf_file_path}`}
               width="100%"
               height="600px"
               title="ورقة الامتحان"

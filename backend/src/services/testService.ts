@@ -179,8 +179,8 @@ class TestService {
       }
 
       // Resolve the full path to the image
-      // The path is stored as relative (e.g., 'scripts/grading_service/tests/123-456/123-456.jpg')
-      // We need to resolve it from the project root
+      // The path is stored as relative (e.g., 'grading_service/tests/123-456/123-456.jpg')
+      // We need to resolve it from the backend root
       let fullImagePath: string;
       if (path.isAbsolute(imagePath)) {
         fullImagePath = imagePath;
@@ -214,9 +214,9 @@ class TestService {
       const pyExec = process.platform === 'win32' ? 'python' : 'python3';
       const candidates = [
         process.env.GRADING_SCRIPT_DIR,
-        path.resolve(process.cwd(), '..', 'scripts', 'grading_service'),
-        path.resolve(process.cwd(), 'scripts', 'grading_service'),
-        path.resolve(__dirname, '..', '..', '..', '..', 'scripts', 'grading_service'),
+        path.resolve(process.cwd(), 'grading_service'),           // if cwd = backend
+        path.resolve(__dirname, '..', '..', '..', 'grading_service'), // when compiled to dist/src/services
+        path.resolve(__dirname, '..', '..', 'grading_service'),   // fallback
       ].filter(Boolean) as string[];
       
       let scriptDir: string = '';
@@ -229,7 +229,7 @@ class TestService {
         } catch { /* ignore */ }
       }
       if (!scriptDir) {
-        scriptDir = path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
+        scriptDir = path.resolve(process.cwd(), 'grading_service');
       }
 
       const outDir = path.resolve(scriptDir, 'tests', `${testId}-${studentId}`);
@@ -264,7 +264,7 @@ class TestService {
       // Update submission
       const answersPayload = {
         answers: detected,
-        bubble_image_path: path.join('scripts', 'grading_service', 'tests', `${testId}-${studentId}`, `${testId}-${studentId}.jpg`).replace(/\\/g, '/')
+        bubble_image_path: path.join('grading_service', 'tests', `${testId}-${studentId}`, `${testId}-${studentId}.jpg`).replace(/\\/g, '/')
       };
 
       const updQ = `
@@ -302,9 +302,9 @@ class TestService {
     // Resolve script directory robustly (Windows dev runs from backend/, prod may vary)
     const candidates = [
       process.env.GRADING_SCRIPT_DIR,
-      path.resolve(process.cwd(), '..', 'scripts', 'grading_service'), // if cwd = backend
-      path.resolve(process.cwd(), 'scripts', 'grading_service'),       // if cwd = project root
-      path.resolve(__dirname, '..', '..', '..', '..', 'scripts', 'grading_service'), // when compiled to dist/src/services
+      path.resolve(process.cwd(), 'grading_service'),           // if cwd = backend
+      path.resolve(__dirname, '..', '..', '..', 'grading_service'), // when compiled to dist/src/services
+      path.resolve(__dirname, '..', '..', 'grading_service'),   // fallback
     ].filter(Boolean) as string[];
     let scriptDir: string = '';
     for (const cand of candidates) {
@@ -316,8 +316,8 @@ class TestService {
       } catch { /* ignore */ }
     }
     if (!scriptDir) {
-      // Final fallback: assume backend is cwd and scripts is sibling
-      scriptDir = path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
+      // Final fallback: assume backend is cwd
+      scriptDir = path.resolve(process.cwd(), 'grading_service');
     }
     const results: Array<{ student_id: number; submission_id: number; score: number | null; output_dir: string }> = [];
 
@@ -391,7 +391,7 @@ class TestService {
 
       let score: number | null = null;
       let subId: number = -1;
-      const answersPayload = detected ? { answers: detected, bubble_image_path: path.join('scripts', 'grading_service', 'tests', `${testId}-${studentId}`, `${testId}-${studentId}.jpg`).replace(/\\/g, '/') } : {};
+      const answersPayload = detected ? { answers: detected, bubble_image_path: path.join('grading_service', 'tests', `${testId}-${studentId}`, `${testId}-${studentId}.jpg`).replace(/\\/g, '/') } : {};
       if (existing.rows.length > 0) {
         const sub = existing.rows[0];
         const test = await this.getTestById(testId);
@@ -1470,9 +1470,9 @@ class TestService {
           // Find the script directory
           const candidates = [
             process.env.GRADING_SCRIPT_DIR,
-            path.resolve(process.cwd(), '..', 'scripts', 'grading_service'),
-            path.resolve(process.cwd(), 'scripts', 'grading_service'),
-            path.resolve(__dirname, '..', '..', '..', '..', 'scripts', 'grading_service'),
+            path.resolve(process.cwd(), 'grading_service'),           // if cwd = backend
+            path.resolve(__dirname, '..', '..', '..', 'grading_service'), // when compiled to dist/src/services
+            path.resolve(__dirname, '..', '..', 'grading_service'),   // fallback
           ].filter(Boolean) as string[];
           
           let scriptDir: string = '';
@@ -1485,7 +1485,7 @@ class TestService {
             } catch { /* ignore */ }
           }
           if (!scriptDir) {
-            scriptDir = path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
+            scriptDir = path.resolve(process.cwd(), 'grading_service');
           }
 
           // Delete the output directory for this submission
