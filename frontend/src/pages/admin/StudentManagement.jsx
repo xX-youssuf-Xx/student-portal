@@ -381,6 +381,34 @@ const StudentManagement = () => {
                     </p>
                   </div>
                   <ResultsLineChart data={resultsData.results} />
+                  {/* Overall Average Display */}
+                  {(() => {
+                    const scores = resultsData.results
+                      .map(r => parseFloat(r.visible_score ?? r.score ?? 0))
+                      .filter(s => !isNaN(s));
+                    if (scores.length === 0) return null;
+                    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                    return (
+                      <div style={{
+                        marginTop: '20px',
+                        padding: '16px',
+                        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                        borderRadius: '12px',
+                        border: '1px solid #bae6fd',
+                        textAlign: 'center'
+                      }}>
+                        <span style={{ fontSize: '1rem', color: '#0369a1', fontWeight: '500' }}>
+                          📊 المتوسط العام للطالب:
+                        </span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0284c7', marginRight: '10px' }}>
+                          {avg.toFixed(2)}%
+                        </span>
+                        <span style={{ fontSize: '0.9rem', color: '#64748b', marginRight: '8px' }}>
+                          (من {scores.length} اختبار)
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>

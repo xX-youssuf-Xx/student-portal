@@ -307,6 +307,16 @@
   font-weight: 500;
 }
 
+.student-info .overall-average {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(14, 165, 233, 0.3) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.student-info .overall-average strong {
+  color: #fef08a;
+  font-size: 1.1em;
+}
+
 /* Test Tabs */
 .test-tabs {
   display: flex;
