@@ -62,14 +62,14 @@ const TestTaking = () => {
   // ALL EFFECTS MUST BE DECLARED BEFORE ANY CONDITIONAL RETURNS
 
   // Save answers to localStorage whenever they change
- useEffect(() => {
+  useEffect(() => {
     try {
       console.debug("[ANSWERS_SAVE] saving to localStorage", { testId, answers });
       localStorage.setItem(`test_${testId}_answers`, JSON.stringify(answers || {}));
     } catch (err) {
       console.error("[ANSWERS_SAVE] failed", err);
     }
-   }, [answers, testId]);
+  }, [answers, testId]);
 
   // Save timeLeft to localStorage every second
   useEffect(() => {
@@ -130,7 +130,8 @@ const TestTaking = () => {
         const questionsResponse = await axios.get(`/tests/${testId}/questions`);
         const testWithQuestions = questionsResponse.data.test;
         testData.questions = testWithQuestions.questions || [];
-        testData.images = testWithQuestions.images || [];      }
+        testData.images = testWithQuestions.images || [];
+      }
 
       setTest(testData);
 
@@ -277,16 +278,16 @@ const TestTaking = () => {
     }
   };
 
-   useEffect(() => {
-       if (test?.questions) {
-         console.log("[TEST DEBUG] questions length:", test.questions.length);
-         console.log("[TEST DEBUG] images:", test.images);
-         test.questions.forEach((q, i) => {
-           const matched = test.images?.find(img => img.display_order === q.media_index);
-           console.log("[Q_MATCH]", { qIndex: i, questionId: q.id, mediaIndex: q.media_index, matched });
-         });
-       }
-     }, [test]);
+  useEffect(() => {
+    if (test?.questions) {
+      console.log("[TEST DEBUG] questions length:", test.questions.length);
+      console.log("[TEST DEBUG] images:", test.images);
+      test.questions.forEach((q, i) => {
+        const matched = test.images?.find(img => img.display_order === q.media_index);
+        console.log("[Q_MATCH]", { qIndex: i, questionId: q.id, mediaIndex: q.media_index, matched });
+      });
+    }
+  }, [test]);
 
   const handleAutoSubmit = async () => {
     if (submitting || submitted) return;
@@ -319,7 +320,7 @@ const TestTaking = () => {
         setShowBubblePanel(false);
         // After submission: try to fetch student's rank (students are authorized)
         console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
-  localStorage.removeItem(`test_${testId}_answers`);
+        localStorage.removeItem(`test_${testId}_answers`);
         localStorage.removeItem(`test_${testId}_time`);
         if (
           test.test_type === "PHYSICAL_SHEET" &&
@@ -346,7 +347,7 @@ const TestTaking = () => {
       } else {
         setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
         console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
-  localStorage.removeItem(`test_${testId}_answers`);
+        localStorage.removeItem(`test_${testId}_answers`);
         localStorage.removeItem(`test_${testId}_time`);
         // give user a short moment to see toast
         setTimeout(() => navigate("/student/dashboard"), 800);
@@ -413,7 +414,7 @@ const TestTaking = () => {
           setSubmissionResult(response.data.submission);
           setShowSubmittedModal(true);
           console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
-  localStorage.removeItem(`test_${testId}_answers`);
+          localStorage.removeItem(`test_${testId}_answers`);
           localStorage.removeItem(`test_${testId}_time`);
         } else {
           try {
@@ -433,7 +434,7 @@ const TestTaking = () => {
       } else {
         setToast({ type: "success", message: "تم تسليم الاختبار بنجاح" });
         console.debug("[SUBMIT_SUCCESS] clearing localStorage", { testId });
-  localStorage.removeItem(`test_${testId}_answers`);
+        localStorage.removeItem(`test_${testId}_answers`);
         localStorage.removeItem(`test_${testId}_time`);
         setTimeout(() => navigate("/student/dashboard"), 800);
       }
@@ -627,8 +628,8 @@ const TestTaking = () => {
               {submitting
                 ? "جاري التقديم..."
                 : submitted
-                ? "تم التسليم"
-                : "تسليم الاختبار"}
+                  ? "تم التسليم"
+                  : "تسليم الاختبار"}
             </button>
           </div>
         </div>
@@ -973,8 +974,8 @@ const TestTaking = () => {
                     <strong>تاريخ التسليم:</strong>{" "}
                     {submissionResult.created_at
                       ? new Date(submissionResult.created_at).toLocaleString(
-                          "ar-EG"
-                        )
+                        "ar-EG"
+                      )
                       : ""}
                   </p>
                 </div>
@@ -1073,12 +1074,11 @@ const TestTaking = () => {
               (a) => a.id === question.id
             )?.answer;
 
-             // Get base URL and clean it (remove trailing slash and /api suffix)
-             let API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.8bitsolutions.net";
-             API_BASE = API_BASE.replace(/\/api\/?$/, '').replace(/\/$/, '');
-             const image = test.images?.find(img => img.display_order === question.media_index);
-             const imagePath = image?.image_path?.replace(/\\/g, '/').replace(/^\//, '') || '';
-             const imageUrl = image ? `${API_BASE}/${imagePath}` : null;
+            // Get static base URL for images (without /api suffix)
+            const API_BASE = import.meta.env.VITE_STATIC_BASE_URL || "https://studentportal.8bitsolutions.net";
+            const image = test.images?.find(img => img.display_order === question.media_index);
+            const imagePath = image?.image_path?.replace(/\\/g, '/').replace(/^\//, '') || '';
+            const imageUrl = image ? `${API_BASE}/${imagePath}` : null;
 
             return (
               <div
@@ -1261,8 +1261,8 @@ const TestTaking = () => {
           {submitting
             ? "جاري التقديم..."
             : submitted
-            ? "تم التسليم"
-            : "تسليم الاختبار"}
+              ? "تم التسليم"
+              : "تسليم الاختبار"}
         </button>
       </div>
 
@@ -1352,8 +1352,8 @@ const TestTaking = () => {
                   <strong>تاريخ التسليم:</strong>{" "}
                   {submissionResult.created_at
                     ? new Date(submissionResult.created_at).toLocaleString(
-                        "ar-EG"
-                      )
+                      "ar-EG"
+                    )
                     : ""}
                 </p>
               </div>

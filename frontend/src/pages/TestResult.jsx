@@ -59,25 +59,25 @@ const TestResult = () => {
   const formatDate = (dateString) => {
     // Parse time string directly to get exact components
     const date = new Date(dateString);
-    
+
     // Extract components exactly as stored
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
     const day = date.getDate();
     const hours = date.getHours();
     const minutes = date.getMinutes();
-    
+
     // Arabic month names
     const arabicMonths = [
       'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
       'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ];
-    
+
     // Format manually to avoid any timezone shifts
     const arabicMonth = arabicMonths[month - 1];
     const formattedHours = hours.toString().padStart(2, '0');
     const formattedMinutes = minutes.toString().padStart(2, '0');
-    
+
     return `${day} ${arabicMonth} ${year} في ${formattedHours}:${formattedMinutes}`;
   };
 
@@ -172,7 +172,7 @@ const TestResult = () => {
 
     const correctAnswers = result.correct_answers_visible.answers;
     const API_BASE =
-      import.meta?.env?.VITE_API_BASE_URL ||
+      import.meta?.env?.VITE_STATIC_BASE_URL ||
       "https://studentportal.8bitsolutions.net";
 
     const imgSrc = studentAnswers?.bubble_image_path
@@ -245,7 +245,7 @@ const TestResult = () => {
       {};
 
     // Get test images to display with questions
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://studentportal.8bitsolutions.net";
+    const API_BASE = import.meta.env.VITE_STATIC_BASE_URL || "https://studentportal.8bitsolutions.net";
 
     return (
       <div className="answers-comparison">
@@ -268,16 +268,14 @@ const TestResult = () => {
           return (
             <div
               key={q.id}
-              className={`question-comparison ${
-                isCorrect ? "correct" : "incorrect"
-              }`}
+              className={`question-comparison ${isCorrect ? "correct" : "incorrect"
+                }`}
             >
               <div className="question-header">
                 <h4>السؤال {idx + 1}</h4>
                 <span
-                  className={`result-badge ${
-                    isCorrect ? "correct" : "incorrect"
-                  }`}
+                  className={`result-badge ${isCorrect ? "correct" : "incorrect"
+                    }`}
                 >
                   {isCorrect ? "✓ صحيح" : "✗ خطأ"}
                 </span>
@@ -317,13 +315,10 @@ const TestResult = () => {
                     return (
                       <div
                         key={i}
-                        className={`option-item ${
-                          isCorrectAns ? "correct-answer" : ""
-                        } ${
-                          isStudentAns && !isCorrectAns ? "wrong-answer" : ""
-                        } ${
-                          isStudentAns && isCorrectAns ? "student-correct" : ""
-                        }`}
+                        className={`option-item ${isCorrectAns ? "correct-answer" : ""
+                          } ${isStudentAns && !isCorrectAns ? "wrong-answer" : ""
+                          } ${isStudentAns && isCorrectAns ? "student-correct" : ""
+                          }`}
                       >
                         <span>{opt}</span>
                         {isCorrectAns && (
@@ -654,7 +649,7 @@ const TestResult = () => {
           <div className="test-pdf-reference">
             <h3>ورقة الامتحان للمراجعة</h3>
             <iframe
-              src={`${import.meta.env.VITE_API_BASE_URL || "https://studentportal.8bitsolutions.net"}/${result.pdf_file_path}`}
+              src={`${import.meta.env.VITE_STATIC_BASE_URL || "https://studentportal.8bitsolutions.net"}/${result.pdf_file_path}`}
               width="100%"
               height="600px"
               title="ورقة الامتحان"
