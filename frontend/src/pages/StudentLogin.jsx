@@ -18,14 +18,17 @@ const StudentLogin = () => {
     setLoading(true);
     setError('');
 
-    if (!phoneNumber || !password) {
+    const trimmedPhone = phoneNumber.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedPhone || !trimmedPassword) {
       setError('يرجى إدخال رقم الهاتف وكلمة المرور');
       setLoading(false);
       return;
     }
 
     try {
-      const result = await login(phoneNumber, password, 'student');
+      const result = await login(trimmedPhone, trimmedPassword, 'student');
       
       if (result.success) {
         navigate('/student/dashboard');
