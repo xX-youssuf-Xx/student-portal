@@ -41,8 +41,11 @@ class AuthController {
     try {
       const { phone_number, password } = req.body;
 
-      // Placeholder admin credentials - replace with database lookup
-      if (phone_number === '01009577656' && password === 'admin7656') {
+      const adminPhone = process.env.ADMIN_PHONE_NUMBER;
+      const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+      const isValidPassword = await authService.comparePassword(password, adminPasswordHash || '');
+
+      if (phone_number === adminPhone && isValidPassword) {
         const admin = {
           id: 1,
           phone_number: 'admin',
