@@ -79,23 +79,21 @@ const StudentManagement = () => {
 		}
 	};
 
-	const handleLoginAsStudent = async (student) => {
-		try {
-			const response = await axios.post(
-				`/admin/students/${student.id}/login-token`,
-			);
-			const { token, user } = response.data;
-
-			const userEncoded = encodeURIComponent(JSON.stringify(user));
-			const studentDashboardUrl = `${window.location.origin}/student/dashboard?token=${token}&user=${userEncoded}`;
-
-			window.open(studentDashboardUrl, "_blank", "noopener,noreferrer");
-		} catch (error) {
-			console.error("Error generating login token:", error);
-			setToast({ type: "error", message: "حدث خطأ أثناء فتح صفحة الطالب" });
-			setTimeout(() => setToast(null), 3000);
-		}
-	};
+  const handleLoginAsStudent = async (student) => {
+    try {
+      const response = await axios.post(`/admin/students/${student.id}/login-token`);
+      const { token, user } = response.data;
+      
+      const userEncoded = encodeURIComponent(JSON.stringify(user));
+      const autoLoginUrl = `${window.location.origin}/student/auto-login?token=${token}&user=${userEncoded}`;
+      
+      window.open(autoLoginUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Error generating login token:', error);
+      setToast({ type: 'error', message: 'حدث خطأ أثناء فتح صفحة الطالب' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
 
 	const openResultsModal = async (student) => {
 		try {

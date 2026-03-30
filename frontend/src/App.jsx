@@ -14,6 +14,7 @@ import DashboardHomePage from "./pages/admin/DashboardHomePage";
 import StudentManagement from "./pages/admin/StudentManagement";
 import TestManagement from "./pages/admin/TestManagement";
 import Home from "./pages/Home";
+import StudentAutoLogin from "./pages/StudentAutoLogin";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentLogin from "./pages/StudentLogin";
 import TestResult from "./pages/TestResult";
@@ -58,6 +59,7 @@ const AppContent = () => {
 					<Routes>
 						<Route path="/" element={<Home />} />
 						<Route path="/student/login" element={<StudentLogin />} />
+						<Route path="/student/auto-login" element={<StudentAutoLogin />} />
 						<Route path="/admin/login" element={<AdminLogin />} />
 						<Route
 							path="/student/dashboard"
