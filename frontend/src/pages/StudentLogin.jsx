@@ -1,107 +1,96 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import './Login.css';
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import "./Login.css";
 
 const StudentLogin = () => {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+	const [phoneNumber, setPhoneNumber] = useState("");
+	const [password, setPassword] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+	const { login } = useAuth();
+	const navigate = useNavigate();
+	const location = useLocation();
 
-    const trimmedPhone = phoneNumber.trim();
-    const trimmedPassword = password.trim();
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+		setLoading(true);
+		setError("");
 
-    if (!trimmedPhone || !trimmedPassword) {
-      setError('يرجى إدخال رقم الهاتف وكلمة المرور');
-      setLoading(false);
-      return;
-    }
+		const trimmedPhone = phoneNumber.trim();
+		const trimmedPassword = password.trim();
 
-    try {
-      const result = await login(trimmedPhone, trimmedPassword, 'student');
-      
-      if (result.success) {
-        navigate('/student/dashboard');
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('حدث خطأ في تسجيل الدخول');
-    } finally {
-      setLoading(false);
-    }
-  };
+		if (!trimmedPhone || !trimmedPassword) {
+			setError("يرجى إدخال رقم الهاتف وكلمة المرور");
+			setLoading(false);
+			return;
+		}
 
-  return (
-    <div className="login-page">
-      <div className="login-container">
-        <div className="login-header">
-          <h1>تسجيل دخول الطالب</h1>
-          <p>أدخل بياناتك للوصول إلى منصة الطالب</p>
-        </div>
+		try {
+			const result = await login(trimmedPhone, trimmedPassword, "student");
 
-        <form className="login-form" onSubmit={handleSubmit}>
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
+			if (result.success) {
+				navigate("/student/dashboard");
+			} else {
+				setError(result.message);
+			}
+		} catch (err) {
+			setError("حدث خطأ في تسجيل الدخول");
+		} finally {
+			setLoading(false);
+		}
+	};
 
-          <div className="form-group">
-            <label htmlFor="phoneNumber">رقم الهاتف</label>
-            <input
-              type="tel"
-              id="phoneNumber"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="أدخل رقم الهاتف"
-              required
-              dir="ltr"
-            />
-          </div>
+	return (
+		<div className="login-page">
+			<div className="login-container">
+				<div className="login-header">
+					<h1>تسجيل دخول الطالب</h1>
+					<p>أدخل بياناتك للوصول إلى منصة الطالب</p>
+				</div>
 
-          <div className="form-group">
-            <label htmlFor="password">كلمة المرور</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="أدخل كلمة المرور"
-              required
-            />
-          </div>
+				<form className="login-form" onSubmit={handleSubmit}>
+					{error && <div className="error-message">{error}</div>}
 
-          <button 
-            type="submit" 
-            className="login-button"
-            disabled={loading}
-          >
-            {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
-          </button>
-        </form>
+					<div className="form-group">
+						<label htmlFor="phoneNumber">رقم الهاتف</label>
+						<input
+							type="tel"
+							id="phoneNumber"
+							value={phoneNumber}
+							onChange={(e) => setPhoneNumber(e.target.value)}
+							placeholder="أدخل رقم الهاتف"
+							required
+							dir="ltr"
+						/>
+					</div>
 
-        <div className="back-home">
-          <button 
-            className="link-button"
-            onClick={() => navigate('/')}
-          >
-            العودة للرئيسية
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+					<div className="form-group">
+						<label htmlFor="password">كلمة المرور</label>
+						<input
+							type="password"
+							id="password"
+							value={password}
+							onChange={(e) => setPassword(e.target.value)}
+							placeholder="أدخل كلمة المرور"
+							required
+						/>
+					</div>
+
+					<button type="submit" className="login-button" disabled={loading}>
+						{loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
+					</button>
+				</form>
+
+				<div className="back-home">
+					<button className="link-button" onClick={() => navigate("/")}>
+						العودة للرئيسية
+					</button>
+				</div>
+			</div>
+		</div>
+	);
 };
 
-export default StudentLogin; 
+export default StudentLogin;

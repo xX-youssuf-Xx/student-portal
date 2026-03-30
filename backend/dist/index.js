@@ -6,17 +6,36 @@ import database from './src/services/database';
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-const GRADING_ROOT = process.env.GRADING_SCRIPT_DIR
-    || path.resolve(process.cwd(), '..', 'scripts', 'grading_service');
-app.use('/scripts/grading_service', express.static(GRADING_ROOT, {
+const UPLOADS_ROOT = path.resolve(process.cwd(), 'uploads');
+app.use('/uploads', express.static(UPLOADS_ROOT, {
     index: false,
     fallthrough: true,
     maxAge: '1d'
 }));
-console.log(`🖼️  Serving grading images from: ${GRADING_ROOT} at /scripts/grading_service`);
+console.log(`📁 Serving uploads from: ${UPLOADS_ROOT} at /uploads`);
+const possibleGradingPaths = [
+    process.env.GRADING_SCRIPT_DIR,
+    path.resolve(process.cwd(), 'grading_service'),
+    path.resolve(__dirname, 'grading_service'),
+    path.resolve(__dirname, '..', 'grading_service'),
+].filter(Boolean);
+let GRADING_ROOT = possibleGradingPaths[0];
+for (const p of possibleGradingPaths) {
+    const fs = require('fs');
+    if (fs.existsSync(p)) {
+        GRADING_ROOT = p;
+        break;
+    }
+}
+app.use('/grading_service', express.static(GRADING_ROOT, {
+    index: false,
+    fallthrough: true,
+    maxAge: '1d'
+}));
+console.log(`🖼️  Serving grading images from: ${GRADING_ROOT} at /grading_service`);
+console.log(`📂 __dirname: ${__dirname}, cwd: ${process.cwd()}`);
 app.use('/', routes);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3016;
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 API available at http://localhost:${PORT}`);

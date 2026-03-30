@@ -1,9 +1,10 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 class AuthService {
     JWT_SECRET;
     constructor() {
-        this.JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+        this.JWT_SECRET =
+            process.env.JWT_SECRET || "your-secret-key-change-in-production";
     }
     async hashPassword(password) {
         const saltRounds = 10;
@@ -13,14 +14,14 @@ class AuthService {
         return bcrypt.compare(password, hashedPassword);
     }
     generateToken(payload) {
-        return jwt.sign(payload, this.JWT_SECRET, { expiresIn: '24h' });
+        return jwt.sign(payload, this.JWT_SECRET, { expiresIn: "30d" });
     }
     verifyToken(token) {
         try {
             return jwt.verify(token, this.JWT_SECRET);
         }
         catch (error) {
-            throw new Error('Invalid or expired token');
+            throw new Error("Invalid or expired token");
         }
     }
     createStudentToken(student) {
@@ -28,14 +29,14 @@ class AuthService {
             id: student.id,
             phone_number: student.phone_number,
             grade: student.grade,
-            type: 'student'
+            type: "student",
         });
     }
     createAdminToken(admin) {
         return this.generateToken({
             id: admin.id,
             phone_number: admin.phone_number,
-            type: 'admin'
+            type: "admin",
         });
     }
     createLoginResponse(token, user) {
@@ -48,8 +49,8 @@ class AuthService {
                 parent_phone: user.parent_phone,
                 grade: user.grade,
                 student_group: user.student_group,
-                type: user.type
-            }
+                type: user.type,
+            },
         };
     }
 }

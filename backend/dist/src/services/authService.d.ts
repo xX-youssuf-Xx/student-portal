@@ -1,4 +1,4 @@
-import type { Student, Admin, LoginResponse } from '../types';
+import type { Admin, LoginResponse, Student } from "../types";
 declare class AuthService {
     private readonly JWT_SECRET;
     constructor();

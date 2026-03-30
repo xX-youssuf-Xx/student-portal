@@ -1,21 +1,26 @@
-import type { Test, TestAnswer, TestImage } from '../types';
+import type { Test, TestAnswer, TestImage } from "../types";
 interface CreateTestData {
     title: string;
     grade: string;
     student_group?: string;
-    test_type: 'MCQ' | 'BUBBLE_SHEET' | 'PHYSICAL_SHEET';
+    test_type: "MCQ" | "BUBBLE_SHEET" | "PHYSICAL_SHEET";
     start_time: string;
     end_time: string;
     duration_minutes?: number;
     pdf_file_path?: string;
     correct_answers?: any;
-    view_type: 'IMMEDIATE' | 'TEACHER_CONTROLLED';
+    view_type: "IMMEDIATE" | "TEACHER_CONTROLLED";
     view_permission?: boolean;
     show_grade_outside?: boolean;
     test_group?: number | null;
 }
 declare class TestService {
     private normalizeSubmission;
+    regradePhysicalSubmission(submissionId: number): Promise<{
+        success: boolean;
+        score: number | null;
+        message?: string;
+    }>;
     gradePhysicalBatch(params: {
         testId: number;
         nQuestions: number;
@@ -62,6 +67,7 @@ declare class TestService {
         skipped: number[];
     }>;
     updateTest(testId: number, testData: Partial<CreateTestData>): Promise<Test | null>;
+    private regradeSubmissionsForTest;
     deleteTest(testId: number): Promise<boolean>;
     updateViewPermission(testId: number, viewPermission: boolean): Promise<Test | null>;
     getTestSubmissions(testId: number): Promise<any[]>;
@@ -97,6 +103,8 @@ declare class TestService {
         total: number;
         score: number | null;
     }>;
+    regradeAllSubmissions(testId: number): Promise<void>;
+    overrideGrade(submissionId: number, score: number, teacherComment?: string): Promise<any | null>;
 }
 declare const _default: TestService;
 export default _default;

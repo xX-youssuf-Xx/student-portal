@@ -1,5 +1,5 @@
-import { Pool } from 'pg';
-import type { QueryResult, QueryResultRow } from 'pg';
+import type { QueryResult, QueryResultRow } from "pg";
+import { Pool } from "pg";
 declare class DatabaseService {
     private pool;
     constructor();

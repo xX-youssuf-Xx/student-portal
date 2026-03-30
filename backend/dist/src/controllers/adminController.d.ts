@@ -1,5 +1,5 @@
-import type { Response } from 'express';
-import type { AuthenticatedRequest } from '../types';
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "../types";
 declare class AdminController {
     getDashboard(req: AuthenticatedRequest, res: Response): Promise<void>;
     getSystemStats(req: AuthenticatedRequest, res: Response): Promise<void>;

@@ -1,11 +1,11 @@
-import type { Request } from 'express';
+import type { Request } from "express";
 export interface AuthenticatedRequest extends Request {
     user?: {
         id: number;
         phone_number: string;
         parent_phone?: string;
         grade?: string;
-        type: 'student' | 'admin';
+        type: "student" | "admin";
     };
 }
 export interface Student {
@@ -23,7 +23,7 @@ export interface Admin {
     id: number;
     phone_number: string;
     name: string;
-    type: 'admin';
+    type: "admin";
 }
 export interface LoginRequest {
     phone_number: string;
@@ -38,7 +38,7 @@ export interface LoginResponse {
         parent_phone?: string;
         grade?: string;
         student_group?: string;
-        type: 'student' | 'admin';
+        type: "student" | "admin";
     };
 }
 export interface Test {
@@ -46,13 +46,13 @@ export interface Test {
     title: string;
     grade: string;
     student_group?: string;
-    test_type: 'MCQ' | 'BUBBLE_SHEET' | 'PHYSICAL_SHEET';
+    test_type: "MCQ" | "BUBBLE_SHEET" | "PHYSICAL_SHEET";
     start_time: Date;
     end_time: Date;
     duration_minutes?: number;
     pdf_file_path?: string;
     correct_answers?: any;
-    view_type: 'IMMEDIATE' | 'TEACHER_CONTROLLED';
+    view_type: "IMMEDIATE" | "TEACHER_CONTROLLED";
     view_permission: boolean;
     show_grade_outside?: boolean;
     test_group?: number | null;

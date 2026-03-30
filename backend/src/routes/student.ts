@@ -1,7 +1,11 @@
-import { Router } from 'express';
-import studentController from '../controllers/studentController';
-import { authenticateToken, requireStudent, requireAdmin } from '../middleware/auth';
-import { validateStudentId } from '../middleware/validation';
+import { Router } from "express";
+import studentController from "../controllers/studentController";
+import {
+	authenticateToken,
+	requireAdmin,
+	requireStudent,
+} from "../middleware/auth";
+import { validateStudentId } from "../middleware/validation";
 
 const router = Router();
 
@@ -9,12 +13,12 @@ const router = Router();
 router.use(authenticateToken);
 
 // Student dashboard (students only)
-router.get('/dashboard', requireStudent, studentController.getDashboard);
+router.get("/dashboard", requireStudent, studentController.getDashboard);
 
 // Student profile (students only)
-router.get('/profile', requireStudent, studentController.getProfile);
+router.get("/profile", requireStudent, studentController.getProfile);
 
 // Results graph: student self
-router.get('/results', requireStudent, studentController.getStudentResults);
+router.get("/results", requireStudent, studentController.getStudentResults);
 
-export default router; 
+export default router;

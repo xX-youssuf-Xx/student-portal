@@ -1,41 +1,42 @@
-import studentService from '../services/studentService';
+import authService from "../services/authService";
+import studentService from "../services/studentService";
 class StudentController {
     async getDashboard(req, res) {
         try {
             res.json({
-                message: 'Student dashboard',
+                message: "Student dashboard",
                 user: req.user,
                 data: {
                     tests: [],
                     grades: [],
-                    announcements: []
-                }
+                    announcements: [],
+                },
             });
             return;
         }
         catch (error) {
-            console.error('Error getting student dashboard:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error getting student dashboard:", error);
+            res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
     async getProfile(req, res) {
         try {
             if (!req.user?.id) {
-                res.status(400).json({ message: 'User ID not found' });
+                res.status(400).json({ message: "User ID not found" });
                 return;
             }
             const student = await studentService.findById(req.user.id);
             if (!student) {
-                res.status(404).json({ message: 'Student not found' });
+                res.status(404).json({ message: "Student not found" });
                 return;
             }
             res.json({ student });
             return;
         }
         catch (error) {
-            console.error('Error getting student profile:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error getting student profile:", error);
+            res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
@@ -46,54 +47,60 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error('Error getting all students:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error getting all students:", error);
+            res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
     async getStudentResults(req, res) {
         try {
             const targetIdRaw = req.params?.id;
-            const targetId = targetIdRaw ? parseInt(targetIdRaw, 10) : (req.user?.id ?? 0);
+            const targetId = targetIdRaw
+                ? parseInt(targetIdRaw, 10)
+                : (req.user?.id ?? 0);
             if (!targetId || isNaN(targetId)) {
-                res.status(400).json({ message: 'Invalid student ID' });
+                res.status(400).json({ message: "Invalid student ID" });
                 return;
             }
-            if (req.user?.type === 'student' && targetId !== req.user.id) {
-                res.status(403).json({ message: 'Access denied' });
+            if (req.user?.type === "student" && targetId !== req.user.id) {
+                res.status(403).json({ message: "Access denied" });
                 return;
             }
-            const results = await (await import('../services/testService')).default.getStudentTestHistory(targetId);
+            const testService = (await import("../services/testService")).default;
+            const results = await testService.getStudentTestHistory(targetId);
             res.json({ results });
         }
         catch (error) {
-            console.error('Error getting student results:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error getting student results:", error);
+            res.status(500).json({
+                message: "Internal server error",
+                error: error instanceof Error ? error.message : "Unknown error",
+            });
         }
     }
     async getStudentById(req, res) {
         try {
             const { id } = req.params;
             if (!id) {
-                res.status(400).json({ message: 'Student ID is required' });
+                res.status(400).json({ message: "Student ID is required" });
                 return;
             }
             const studentId = parseInt(id, 10);
             if (isNaN(studentId)) {
-                res.status(400).json({ message: 'Invalid student ID' });
+                res.status(400).json({ message: "Invalid student ID" });
                 return;
             }
             const student = await studentService.findById(studentId);
             if (!student) {
-                res.status(404).json({ message: 'Student not found' });
+                res.status(404).json({ message: "Student not found" });
                 return;
             }
             res.json({ student });
             return;
         }
         catch (error) {
-            console.error('Error getting student by ID:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error getting student by ID:", error);
+            res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
@@ -104,8 +111,8 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error('Error creating student:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error creating student:", error);
+            res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
@@ -113,25 +120,25 @@ class StudentController {
         try {
             const { id } = req.params;
             if (!id) {
-                res.status(400).json({ message: 'Student ID is required' });
+                res.status(400).json({ message: "Student ID is required" });
                 return;
             }
             const studentId = parseInt(id, 10);
             if (isNaN(studentId)) {
-                res.status(400).json({ message: 'Invalid student ID' });
+                res.status(400).json({ message: "Invalid student ID" });
                 return;
             }
             const student = await studentService.updateStudent(studentId, req.body);
             if (!student) {
-                res.status(404).json({ message: 'Student not found' });
+                res.status(404).json({ message: "Student not found" });
                 return;
             }
             res.json({ student });
             return;
         }
         catch (error) {
-            console.error('Error updating student:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error updating student:", error);
+            res.status(500).json({ message: "Internal server error" });
             return;
         }
     }
@@ -139,25 +146,56 @@ class StudentController {
         try {
             const { id } = req.params;
             if (!id) {
-                res.status(400).json({ message: 'Student ID is required' });
+                res.status(400).json({ message: "Student ID is required" });
                 return;
             }
             const studentId = parseInt(id, 10);
             if (isNaN(studentId)) {
-                res.status(400).json({ message: 'Invalid student ID' });
+                res.status(400).json({ message: "Invalid student ID" });
                 return;
             }
             const success = await studentService.deleteStudent(studentId);
             if (!success) {
-                res.status(404).json({ message: 'Student not found' });
+                res.status(404).json({ message: "Student not found" });
                 return;
             }
             res.status(204).send();
             return;
         }
         catch (error) {
-            console.error('Error deleting student:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            console.error("Error deleting student:", error);
+            res.status(500).json({ message: "Internal server error" });
+            return;
+        }
+    }
+    async generateLoginToken(req, res) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ message: "Student ID is required" });
+                return;
+            }
+            const studentId = parseInt(id, 10);
+            if (isNaN(studentId)) {
+                res.status(400).json({ message: "Invalid student ID" });
+                return;
+            }
+            const student = await studentService.findByIdWithPassword(studentId);
+            if (!student) {
+                res.status(404).json({ message: "Student not found" });
+                return;
+            }
+            const token = authService.createStudentToken(student);
+            const loginResponse = authService.createLoginResponse(token, {
+                ...student,
+                type: "student",
+            });
+            res.json(loginResponse);
+            return;
+        }
+        catch (error) {
+            console.error("Error generating login token:", error);
+            res.status(500).json({ message: "Internal server error" });
             return;
         }
     }

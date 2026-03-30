@@ -1,73 +1,79 @@
-import type { Request, Response } from 'express';
-import authService from '../services/authService';
-import studentService from '../services/studentService';
+import type { Request, Response } from "express";
+import authService from "../services/authService";
+import studentService from "../services/studentService";
 
 class AuthController {
-  async studentLogin(req: Request, res: Response) {
-    try {
-      const { phone_number, password } = req.body;
+	async studentLogin(req: Request, res: Response) {
+		try {
+			const { phone_number, password } = req.body;
 
-      // Find student by phone number
-      const student = await studentService.findByPhoneNumber(phone_number);
-      
-      if (!student) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
+			// Find student by phone number
+			const student = await studentService.findByPhoneNumber(phone_number);
 
-      // Verify password
-      const isValidPassword = await authService.comparePassword(password, student.password);
-      
-      if (!isValidPassword) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
+			if (!student) {
+				return res.status(401).json({ message: "Invalid credentials" });
+			}
 
-      // Generate token
-      const token = authService.createStudentToken(student);
-      
-      // Create response
-      const response = authService.createLoginResponse(token, {
-        ...student,
-        type: 'student'
-      });
+			// Verify password
+			const isValidPassword = await authService.comparePassword(
+				password,
+				student.password,
+			);
 
-      return res.json(response);
-    } catch (error) {
-      console.error('Student login error:', error);
-      return res.status(500).json({ message: 'Internal server error' });
-    }
-  }
+			if (!isValidPassword) {
+				return res.status(401).json({ message: "Invalid credentials" });
+			}
 
-  async adminLogin(req: Request, res: Response) {
-    try {
-      const { phone_number, password } = req.body;
+			// Generate token
+			const token = authService.createStudentToken(student);
 
-      const adminPhone = process.env.ADMIN_PHONE_NUMBER;
-      const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
-      const isValidPassword = await authService.comparePassword(password, adminPasswordHash || '');
+			// Create response
+			const response = authService.createLoginResponse(token, {
+				...student,
+				type: "student",
+			});
 
-      if (phone_number === adminPhone && isValidPassword) {
-        const admin = {
-          id: 1,
-          phone_number: 'admin',
-          name: 'Admin',
-          type: 'admin' as const
-        };
+			return res.json(response);
+		} catch (error) {
+			console.error("Student login error:", error);
+			return res.status(500).json({ message: "Internal server error" });
+		}
+	}
 
-        // Generate token
-        const token = authService.createAdminToken(admin);
-        
-        // Create response
-        const response = authService.createLoginResponse(token, admin);
+	async adminLogin(req: Request, res: Response) {
+		try {
+			const { phone_number, password } = req.body;
 
-        return res.json(response);
-      } else {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
-    } catch (error) {
-      console.error('Admin login error:', error);
-      return res.status(500).json({ message: 'Internal server error' });
-    }
-  }
+			const adminPhone = process.env.ADMIN_PHONE_NUMBER;
+			const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+			const isValidPassword = await authService.comparePassword(
+				password,
+				adminPasswordHash || "",
+			);
+
+			if (phone_number === adminPhone && isValidPassword) {
+				const admin = {
+					id: 1,
+					phone_number: "admin",
+					name: "Admin",
+					type: "admin" as const,
+				};
+
+				// Generate token
+				const token = authService.createAdminToken(admin);
+
+				// Create response
+				const response = authService.createLoginResponse(token, admin);
+
+				return res.json(response);
+			} else {
+				return res.status(401).json({ message: "Invalid credentials" });
+			}
+		} catch (error) {
+			console.error("Admin login error:", error);
+			return res.status(500).json({ message: "Internal server error" });
+		}
+	}
 }
 
-export default new AuthController(); 
+export default new AuthController();

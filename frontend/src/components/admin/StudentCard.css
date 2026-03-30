@@ -1,93 +1,105 @@
 .student-card {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  padding: 20px;
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  min-height: 180px;
-  min-width: 280px;
+	background-color: #fff;
+	border-radius: 8px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	padding: 20px;
+	margin-bottom: 20px;
+	display: flex;
+	flex-direction: column;
+	min-height: 180px;
+	min-width: 280px;
 }
 
 .student-card-header {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 15px;
-  gap: 10px;
+	display: flex;
+	flex-direction: column;
+	margin-bottom: 15px;
+	gap: 10px;
 }
 
 .student-card-header h3 {
-  margin: 0;
-  color: #007bff;
-  display: block;
-  font-size: 1.1rem;
-  line-height: 1.5;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  hyphens: auto;
-  white-space: normal;
+	margin: 0;
+	color: #007bff;
+	display: block;
+	font-size: 1.1rem;
+	line-height: 1.5;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+	hyphens: auto;
+	white-space: normal;
 }
 
 .student-id {
-  font-size: 0.75em;
-  color: #999;
-  font-weight: normal;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
+	font-size: 0.75em;
+	color: #999;
+	font-weight: normal;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
 }
 
 .copy-id-btn {
-  background: none;
-  border: none;
-  padding: 2px;
-  cursor: pointer;
-  color: #999;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  transition: color 0.2s, background-color 0.2s;
+	background: none;
+	border: none;
+	padding: 2px;
+	cursor: pointer;
+	color: #999;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	transition:
+		color 0.2s,
+		background-color 0.2s;
 }
 
 .copy-id-btn:hover {
-  color: #007bff;
-  background-color: rgba(0, 123, 255, 0.1);
+	color: #007bff;
+	background-color: rgba(0, 123, 255, 0.1);
 }
 
 .student-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: flex-end;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	justify-content: flex-end;
 }
 
 .student-card-actions .edit-btn,
-.student-card-actions .delete-btn {
-  border: none;
-  padding: 8px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-size: 13px;
+.student-card-actions .delete-btn,
+.student-card-actions .login-as-student-btn {
+	border: none;
+	padding: 8px 12px;
+	border-radius: 5px;
+	cursor: pointer;
+	white-space: nowrap;
+	font-size: 13px;
 }
 
 .edit-btn {
-  background-color: #ffc107;
-  color: white;
+	background-color: #ffc107;
+	color: white;
 }
 
 .delete-btn {
-  background-color: #dc3545;
-  color: white;
+	background-color: #dc3545;
+	color: white;
+}
+
+.login-as-student-btn {
+	background-color: #28a745;
+	color: white;
+}
+
+.login-as-student-btn:hover {
+	background-color: #218838;
 }
 
 .student-card-body {
-  flex: 1;
+	flex: 1;
 }
 
 .student-card-body p {
-  margin: 5px 0;
+	margin: 5px 0;
 }
