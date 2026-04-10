@@ -59,41 +59,78 @@
 	background-color: rgba(0, 123, 255, 0.1);
 }
 
-.student-card-actions {
+.student-card-actions-menu {
+	position: relative;
 	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
 	justify-content: flex-end;
+	align-items: center;
 }
 
-.student-card-actions .edit-btn,
-.student-card-actions .delete-btn,
-.student-card-actions .login-as-student-btn {
+.menu-trigger-btn {
+	width: 34px;
+	height: 34px;
+	border: 1px solid #d1d5db;
+	background: #ffffff;
+	border-radius: 8px;
+	cursor: pointer;
+	font-size: 20px;
+	line-height: 1;
+	color: #334155;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding-bottom: 2px;
+	transition:
+		background-color 0.2s,
+		border-color 0.2s,
+		color 0.2s;
+}
+
+.menu-trigger-btn:hover {
+	background-color: #f8fafc;
+	border-color: #94a3b8;
+	color: #0f172a;
+}
+
+.student-actions-dropdown {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: 0;
+	min-width: 210px;
+	background-color: #fff;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+	padding: 6px;
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.dropdown-action-btn {
 	border: none;
-	padding: 8px 12px;
-	border-radius: 5px;
+	background: transparent;
+	color: #1f2937;
+	padding: 10px 12px;
+	border-radius: 8px;
+	font-size: 13px;
+	text-align: right;
 	cursor: pointer;
 	white-space: nowrap;
-	font-size: 13px;
+	transition: background-color 0.2s;
 }
 
-.edit-btn {
-	background-color: #ffc107;
-	color: white;
+.dropdown-action-btn:hover {
+	background-color: #f1f5f9;
 }
 
-.delete-btn {
-	background-color: #dc3545;
-	color: white;
+.dropdown-action-btn.danger {
+	color: #b91c1c;
 }
 
-.login-as-student-btn {
-	background-color: #28a745;
-	color: white;
-}
-
-.login-as-student-btn:hover {
-	background-color: #218838;
+.dropdown-action-btn.danger:hover {
+	background-color: #fef2f2;
 }
 
 .student-card-body {

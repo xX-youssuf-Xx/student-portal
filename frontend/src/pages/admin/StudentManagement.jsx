@@ -79,21 +79,42 @@ const StudentManagement = () => {
 		}
 	};
 
-  const handleLoginAsStudent = async (student) => {
-    try {
-      const response = await axios.post(`/admin/students/${student.id}/login-token`);
-      const { token, user } = response.data;
-      
-      const userEncoded = encodeURIComponent(JSON.stringify(user));
-      const autoLoginUrl = `${window.location.origin}/student/auto-login?token=${token}&user=${userEncoded}`;
-      
-      window.open(autoLoginUrl, '_blank', 'noopener,noreferrer');
-    } catch (error) {
-      console.error('Error generating login token:', error);
-      setToast({ type: 'error', message: 'حدث خطأ أثناء فتح صفحة الطالب' });
-      setTimeout(() => setToast(null), 3000);
-    }
-  };
+	const copyToClipboard = async (text) => {
+		if (navigator.clipboard?.writeText) {
+			await navigator.clipboard.writeText(text);
+			return;
+		}
+
+		const textArea = document.createElement("textarea");
+		textArea.value = text;
+		textArea.style.position = "fixed";
+		textArea.style.opacity = "0";
+		document.body.appendChild(textArea);
+		textArea.focus();
+		textArea.select();
+		document.execCommand("copy");
+		document.body.removeChild(textArea);
+	};
+
+	const handleCopyLoginLink = async (student) => {
+		try {
+			const response = await axios.post(
+				`/admin/students/${student.id}/login-token`,
+			);
+			const { token, user } = response.data;
+
+			const userEncoded = encodeURIComponent(JSON.stringify(user));
+			const autoLoginUrl = `${window.location.origin}/student/auto-login?token=${token}&user=${userEncoded}`;
+
+			await copyToClipboard(autoLoginUrl);
+			setToast({ type: "success", message: "تم نسخ رابط الدخول كطالب" });
+			setTimeout(() => setToast(null), 3000);
+		} catch (error) {
+			console.error("Error generating login token:", error);
+			setToast({ type: "error", message: "حدث خطأ أثناء نسخ رابط الدخول" });
+			setTimeout(() => setToast(null), 3000);
+		}
+	};
 
 	const openResultsModal = async (student) => {
 		try {
@@ -348,15 +369,8 @@ const StudentManagement = () => {
 						student={student}
 						onEdit={handleEditStudent}
 						onDelete={handleDeleteStudent}
-						onLoginAsStudent={handleLoginAsStudent}
-						extraActions={
-							<button
-								className="edit-btn"
-								onClick={() => openResultsModal(student)}
-							>
-								عرض النتائج
-							</button>
-						}
+						onCopyLoginLink={handleCopyLoginLink}
+						onViewResults={openResultsModal}
 					/>
 				))}
 			</div>
