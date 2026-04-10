@@ -64,6 +64,15 @@ class StudentService {
     }
     async updateStudent(id, updateData) {
         try {
+            if (typeof updateData.password === "string") {
+                const trimmedPassword = updateData.password.trim();
+                if (trimmedPassword.length > 0) {
+                    updateData.password = await authService.hashPassword(trimmedPassword);
+                }
+                else {
+                    delete updateData.password;
+                }
+            }
             if (updateData.grade === "3MIDDLE") {
                 updateData.student_group = null;
             }

@@ -93,6 +93,15 @@ class StudentService {
 		updateData: Partial<Student>,
 	): Promise<Student | null> {
 		try {
+			if (typeof updateData.password === "string") {
+				const trimmedPassword = updateData.password.trim();
+				if (trimmedPassword.length > 0) {
+					updateData.password = await authService.hashPassword(trimmedPassword);
+				} else {
+					delete updateData.password;
+				}
+			}
+
 			// If grade is set to 3MIDDLE, force group to null
 			if (updateData.grade === "3MIDDLE") {
 				updateData.student_group = null as any;
