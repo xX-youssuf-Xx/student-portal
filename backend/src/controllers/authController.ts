@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import authService from "../services/authService";
+import logger from "../services/logger";
 import studentService from "../services/studentService";
 
 class AuthController {
@@ -35,7 +36,7 @@ class AuthController {
 
 			return res.json(response);
 		} catch (error) {
-			console.error("Student login error:", error);
+			logger.error("Student login error:", error);
 			return res.status(500).json({ message: "Internal server error" });
 		}
 	}
@@ -70,7 +71,7 @@ class AuthController {
 				return res.status(401).json({ message: "Invalid credentials" });
 			}
 		} catch (error) {
-			console.error("Admin login error:", error);
+			logger.error("Admin login error:", error);
 			return res.status(500).json({ message: "Internal server error" });
 		}
 	}

@@ -43,7 +43,6 @@ app.use('/grading_service', express.static(GRADING_ROOT, {
   maxAge: '1d'
 }));
 console.log(`🖼️  Serving grading images from: ${GRADING_ROOT} at /grading_service`);
-console.log(`📂 __dirname: ${__dirname}, cwd: ${process.cwd()}`);
 
 // Routes
 app.use('/', routes);

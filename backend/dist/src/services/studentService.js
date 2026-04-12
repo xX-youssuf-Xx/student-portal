@@ -1,5 +1,6 @@
 import authService from "./authService";
 import database from "./database";
+import logger from "./logger";
 class StudentService {
     async findByPhoneNumber(phoneNumber) {
         try {
@@ -7,7 +8,7 @@ class StudentService {
             return result.rows.length > 0 ? result.rows[0] : null;
         }
         catch (error) {
-            console.error("Error finding student by phone number:", error);
+            logger.error("Error finding student by phone number:", error);
             throw new Error("Database error while finding student");
         }
     }
@@ -17,7 +18,7 @@ class StudentService {
             return result.rows.length > 0 ? result.rows[0] : null;
         }
         catch (error) {
-            console.error("Error finding student by ID:", error);
+            logger.error("Error finding student by ID:", error);
             throw new Error("Database error while finding student");
         }
     }
@@ -27,7 +28,7 @@ class StudentService {
             return result.rows.length > 0 ? result.rows[0] : null;
         }
         catch (error) {
-            console.error("Error finding student by ID with password:", error);
+            logger.error("Error finding student by ID with password:", error);
             throw new Error("Database error while finding student");
         }
     }
@@ -37,7 +38,7 @@ class StudentService {
             return result.rows;
         }
         catch (error) {
-            console.error("Error getting all students:", error);
+            logger.error("Error getting all students:", error);
             throw new Error("Database error while getting students");
         }
     }
@@ -58,7 +59,7 @@ class StudentService {
             return result.rows[0];
         }
         catch (error) {
-            console.error("Error creating student:", error);
+            logger.error("Error creating student:", error);
             throw new Error("Database error while creating student");
         }
     }
@@ -91,7 +92,7 @@ class StudentService {
             return result.rows.length > 0 ? result.rows[0] : null;
         }
         catch (error) {
-            console.error("Error updating student:", error);
+            logger.error("Error updating student:", error);
             throw new Error("Database error while updating student");
         }
     }
@@ -101,7 +102,7 @@ class StudentService {
             return result.rows.length > 0;
         }
         catch (error) {
-            console.error("Error deleting student:", error);
+            logger.error("Error deleting student:", error);
             throw new Error("Database error while deleting student");
         }
     }

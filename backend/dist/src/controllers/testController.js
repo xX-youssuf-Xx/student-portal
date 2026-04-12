@@ -2,6 +2,7 @@ import fs from "fs";
 import multer from "multer";
 import path from "path";
 import { promisify } from "util";
+import logger from "../services/logger";
 import testService from "../services/testService";
 const unlinkAsync = promisify(fs.unlink);
 const storage = multer.diskStorage({
@@ -46,7 +47,7 @@ const handleArrayUpload = (req, res, next) => {
                 }
             }
             catch (e) {
-                console.error("Error parsing images array:", e);
+                logger.error("Error parsing images array:", e);
             }
         }
         const imageFields = Object.keys(req.body).filter((key) => key.startsWith("images[") && key.endsWith("]"));
@@ -103,14 +104,14 @@ class TestController {
                     await testService.addTestImages(imagePaths);
                 }
                 catch (error) {
-                    console.error("Error saving test images:", error);
+                    logger.error("Error saving test images:", error);
                 }
             }
             const updatedTest = await testService.getTestById(test.id);
             res.status(201).json({ test: updatedTest });
         }
         catch (error) {
-            console.error("Error creating test:", error);
+            logger.error("Error creating test:", error);
             if (files && Array.isArray(files)) {
                 await Promise.all(files.map((file) => unlinkAsync(file.path).catch(console.error)));
             }
@@ -123,7 +124,7 @@ class TestController {
             res.json({ tests });
         }
         catch (error) {
-            console.error("Error getting all tests:", error);
+            logger.error("Error getting all tests:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -156,7 +157,7 @@ class TestController {
             res.json({ test: testWithImageUrls });
         }
         catch (error) {
-            console.error("Error getting test by ID:", error);
+            logger.error("Error getting test by ID:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -198,7 +199,7 @@ class TestController {
                     await testService.addTestImages(imagePaths);
                 }
                 catch (error) {
-                    console.error("Error updating test images:", error);
+                    logger.error("Error updating test images:", error);
                     await Promise.all(files.map((file) => unlinkAsync(file.path).catch(console.error)));
                     throw error;
                 }
@@ -224,7 +225,7 @@ class TestController {
             res.json({ test: testWithImageUrls });
         }
         catch (error) {
-            console.error("Error updating test:", error);
+            logger.error("Error updating test:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -248,7 +249,7 @@ class TestController {
             res.status(204).send();
         }
         catch (error) {
-            console.error("Error deleting test image:", error);
+            logger.error("Error deleting test image:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -272,7 +273,7 @@ class TestController {
             res.status(204).send();
         }
         catch (error) {
-            console.error("Error deleting test:", error);
+            logger.error("Error deleting test:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -292,7 +293,7 @@ class TestController {
             return res.json({ test: updatedTest });
         }
         catch (error) {
-            console.error("Error updating test view permission:", error);
+            logger.error("Error updating test view permission:", error);
             return res
                 .status(500)
                 .json({ message: "Error updating test view permission" });
@@ -316,7 +317,7 @@ class TestController {
             return res.json({ test: updatedTest });
         }
         catch (error) {
-            console.error("Error updating show_grade_outside:", error);
+            logger.error("Error updating show_grade_outside:", error);
             return res
                 .status(500)
                 .json({ message: "Error updating show_grade_outside setting" });
@@ -338,7 +339,7 @@ class TestController {
             res.json({ submissions });
         }
         catch (error) {
-            console.error("Error getting test submissions:", error);
+            logger.error("Error getting test submissions:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -363,7 +364,7 @@ class TestController {
             res.json({ submission });
         }
         catch (error) {
-            console.error("Error grading submission:", error);
+            logger.error("Error grading submission:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -387,7 +388,7 @@ class TestController {
             res.status(204).send();
         }
         catch (error) {
-            console.error("Error deleting submission:", error);
+            logger.error("Error deleting submission:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -414,7 +415,7 @@ class TestController {
             res.json(data);
         }
         catch (error) {
-            console.error("Error fetching submission with test:", error);
+            logger.error("Error fetching submission with test:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -443,7 +444,7 @@ class TestController {
             res.json({ submission: updated });
         }
         catch (error) {
-            console.error("Error setting manual grades:", error);
+            logger.error("Error setting manual grades:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -483,7 +484,7 @@ class TestController {
             });
         }
         catch (error) {
-            console.error("Error getting available tests:", error);
+            logger.error("Error getting available tests:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -497,7 +498,7 @@ class TestController {
             res.json({ history });
         }
         catch (error) {
-            console.error("Error getting student test history:", error);
+            logger.error("Error getting student test history:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -521,7 +522,7 @@ class TestController {
             res.json({ test: testData });
         }
         catch (error) {
-            console.error("Error starting test:", error);
+            logger.error("Error starting test:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -541,7 +542,7 @@ class TestController {
             res.json(images);
         }
         catch (error) {
-            console.error("Error fetching test images:", error);
+            logger.error("Error fetching test images:", error);
             res.status(500).json({ message: "Failed to fetch test images" });
         }
     }
@@ -565,7 +566,7 @@ class TestController {
             res.json({ test: testData });
         }
         catch (error) {
-            console.error("Error getting test questions:", error);
+            logger.error("Error getting test questions:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -590,7 +591,7 @@ class TestController {
             res.json({ submission });
         }
         catch (error) {
-            console.error("Error submitting test:", error);
+            logger.error("Error submitting test:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -614,7 +615,7 @@ class TestController {
             res.json({ result });
         }
         catch (error) {
-            console.error("Error getting test result:", error);
+            logger.error("Error getting test result:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -641,7 +642,7 @@ class TestController {
             res.json({ submission });
         }
         catch (error) {
-            console.error("Error uploading bubble sheet:", error);
+            logger.error("Error uploading bubble sheet:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -665,7 +666,7 @@ class TestController {
             });
         }
         catch (error) {
-            console.error("Error getting student rank:", error);
+            logger.error("Error getting student rank:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -755,7 +756,7 @@ class TestController {
             res.json({ results });
         }
         catch (error) {
-            console.error("Error in gradePhysicalBatch:", error);
+            logger.error("Error in gradePhysicalBatch:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -775,7 +776,7 @@ class TestController {
             res.json({ students });
         }
         catch (error) {
-            console.error("Error fetching eligible students:", error);
+            logger.error("Error fetching eligible students:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -815,7 +816,7 @@ class TestController {
             res.json(result);
         }
         catch (error) {
-            console.error("Error including students:", error);
+            logger.error("Error including students:", error);
             if (error.message?.includes("PHYSICAL_SHEET")) {
                 res.status(400).json({ message: error.message });
             }
@@ -866,7 +867,7 @@ class TestController {
             res.end();
         }
         catch (error) {
-            console.error("Error exporting rankings:", error);
+            logger.error("Error exporting rankings:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -912,7 +913,7 @@ class TestController {
             res.json({ submission: updated });
         }
         catch (error) {
-            console.error("Error updating bubble answers:", error);
+            logger.error("Error updating bubble answers:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -934,7 +935,7 @@ class TestController {
                 .json({ message: "Regrading process started in the background." });
         }
         catch (error) {
-            console.error("Error starting regrade process:", error);
+            logger.error("Error starting regrade process:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -963,7 +964,7 @@ class TestController {
             res.json({ submission });
         }
         catch (error) {
-            console.error("Error overriding grade:", error);
+            logger.error("Error overriding grade:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -989,7 +990,7 @@ class TestController {
             res.json({ success: true, score: result.score, message: result.message });
         }
         catch (error) {
-            console.error("Error regrading physical submission:", error);
+            logger.error("Error regrading physical submission:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }

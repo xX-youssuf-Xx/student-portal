@@ -33,7 +33,6 @@ app.use('/grading_service', express.static(GRADING_ROOT, {
     maxAge: '1d'
 }));
 console.log(`🖼️  Serving grading images from: ${GRADING_ROOT} at /grading_service`);
-console.log(`📂 __dirname: ${__dirname}, cwd: ${process.cwd()}`);
 app.use('/', routes);
 const PORT = process.env.PORT || 3016;
 const server = app.listen(PORT, () => {

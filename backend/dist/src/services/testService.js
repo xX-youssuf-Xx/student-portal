@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { promisify } from "util";
 import database from "./database";
+import logger from "./logger";
 const unlinkAsync = promisify(fs.unlink);
 const pad = (n) => String(n).padStart(2, "0");
 const formatLocal = (d) => {
@@ -107,7 +108,7 @@ class TestService {
             }
         }
         catch (e) {
-            console.error("Failed to parse submission JSON fields", e);
+            logger.error("Failed to parse submission JSON fields", e);
         }
         return s;
     }
@@ -223,25 +224,51 @@ class TestService {
                 "-i",
                 fullImagePath,
             ];
-            console.log(`[REGRADE] Running Python script for submission ${submissionId}`);
-            console.log(`[REGRADE] Command: ${pyExec} ${args.join(" ")}`);
-            console.log(`[REGRADE] Working directory: ${scriptDir}`);
-            console.log(`[REGRADE] Input image: ${fullImagePath}`);
-            await new Promise((resolve) => {
+            console.log(`[REGRADE] Running grading script for submission ${submissionId}`);
+            const outJsonPre = path.join(outDir, `${testId}-${studentId}.json`);
+            const outImgPre = path.join(outDir, `${testId}-${studentId}.jpg`);
+            try {
+                if (fs.existsSync(outJsonPre))
+                    fs.unlinkSync(outJsonPre);
+            }
+            catch { }
+            try {
+                if (fs.existsSync(outImgPre))
+                    fs.unlinkSync(outImgPre);
+            }
+            catch { }
+            const exitCode = await new Promise((resolve) => {
                 const child = spawn(pyExec, args, {
                     cwd: scriptDir,
-                    stdio: "inherit",
+                    stdio: ["ignore", "pipe", "pipe"],
                     shell: process.platform === "win32",
                 });
+                child.stdout?.on("data", (data) => {
+                    const msg = data.toString().trim();
+                    if (msg)
+                        console.log(`[GRADING] ${msg}`);
+                });
+                child.stderr?.on("data", (data) => {
+                    const msg = data.toString().trim();
+                    if (msg)
+                        console.error(`[GRADING ERROR] ${msg}`);
+                });
                 child.on("close", (code) => {
-                    console.log(`[REGRADE] Python script finished for submission ${submissionId} with exit code: ${code}`);
-                    resolve();
+                    console.log(`[REGRADE] Script finished for submission ${submissionId} (exit ${code})`);
+                    resolve(code);
                 });
                 child.on("error", (err) => {
-                    console.error(`[REGRADE] Python script error for submission ${submissionId}:`, err);
-                    resolve();
+                    console.error(`[REGRADE] Script error for submission ${submissionId}:`, err.message);
+                    resolve(null);
                 });
             });
+            if (exitCode !== 0) {
+                return {
+                    success: false,
+                    score: null,
+                    message: `Grading script failed with exit code ${exitCode}`,
+                };
+            }
             const outJson = path.join(outDir, `${testId}-${studentId}.json`);
             let detected = null;
             try {
@@ -284,7 +311,8 @@ class TestService {
             };
         }
         catch (error) {
-            console.error("Error regrading physical submission:", error);
+            logger.error("Error regrading physical submission:", error);
+            console.error(`[REGRADE] Error:`, error instanceof Error ? error.message : error);
             return {
                 success: false,
                 score: null,
@@ -294,8 +322,7 @@ class TestService {
     }
     async gradePhysicalBatch(params) {
         const { testId, nQuestions, studentsOrdered, files, namesAsIds } = params;
-        console.log(`[GRADING] Starting batch grading for test ${testId}`);
-        console.log(`[GRADING] Number of questions: ${nQuestions}, Students: ${studentsOrdered.length}, Files: ${files.length}, namesAsIds: ${namesAsIds}`);
+        console.log(`[GRADING] Starting batch grading for test ${testId} (${studentsOrdered.length} students, ${files.length} files, ${nQuestions} questions)`);
         const pyExec = process.platform === "win32" ? "python" : "python3";
         const candidates = [
             process.env.GRADING_SCRIPT_DIR,
@@ -380,25 +407,56 @@ class TestService {
                 "-i",
                 path.resolve(chosen.path),
             ];
-            console.log(`[GRADING] Running Python script for student ${studentId}`);
-            console.log(`[GRADING] Command: ${pyExec} ${args.join(" ")}`);
-            console.log(`[GRADING] Working directory: ${scriptDir}`);
-            console.log(`[GRADING] Output directory: ${outDir}`);
-            await new Promise((resolve) => {
+            console.log(`[GRADING] Running script for student ${studentId}`);
+            const outJsonPre = path.join(outDir, `${testId}-${studentId}.json`);
+            const outImgPre = path.join(outDir, `${testId}-${studentId}.jpg`);
+            try {
+                if (fs.existsSync(outJsonPre))
+                    fs.unlinkSync(outJsonPre);
+            }
+            catch {
+            }
+            try {
+                if (fs.existsSync(outImgPre))
+                    fs.unlinkSync(outImgPre);
+            }
+            catch {
+            }
+            const exitCode = await new Promise((resolve) => {
                 const child = spawn(pyExec, args, {
                     cwd: scriptDir,
-                    stdio: "inherit",
+                    stdio: ["ignore", "pipe", "pipe"],
                     shell: process.platform === "win32",
                 });
+                child.stdout?.on("data", (data) => {
+                    const msg = data.toString().trim();
+                    if (msg)
+                        console.log(`[GRADING] ${msg}`);
+                });
+                child.stderr?.on("data", (data) => {
+                    const msg = data.toString().trim();
+                    if (msg)
+                        console.error(`[GRADING ERROR] ${msg}`);
+                });
                 child.on("close", (code) => {
-                    console.log(`[GRADING] Python script finished for student ${studentId} with exit code: ${code}`);
-                    resolve();
+                    console.log(`[GRADING] Script finished for student ${studentId} (exit ${code})`);
+                    resolve(code);
                 });
                 child.on("error", (err) => {
-                    console.error(`[GRADING] Python script error for student ${studentId}:`, err);
-                    resolve();
+                    console.error(`[GRADING ERROR] Script error for student ${studentId}: ${err.message}`);
+                    resolve(null);
                 });
             });
+            if (exitCode !== 0) {
+                logger.error(`Batch grading script failed for student ${studentId} with exit code ${exitCode}`);
+                results.push({
+                    student_id: studentId,
+                    submission_id: -1,
+                    score: null,
+                    output_dir: outDir,
+                });
+                continue;
+            }
             const outJson = path.join(outDir, `${testId}-${studentId}.json`);
             let detected = null;
             try {
@@ -470,6 +528,7 @@ class TestService {
                 output_dir: outDir,
             });
         }
+        console.log(`[GRADING] Finished batch grading for test ${testId}`);
         return results;
     }
     async updateSubmissionAnswers(submissionId, answersMap, teacherComment) {
@@ -517,8 +576,8 @@ class TestService {
         };
         const startTimeWithTz = ensureCairoTimezone(testData.start_time);
         const endTimeWithTz = ensureCairoTimezone(testData.end_time);
-        console.log(`[createTest] Input start_time: ${testData.start_time} -> With TZ: ${startTimeWithTz}`);
-        console.log(`[createTest] Input end_time: ${testData.end_time} -> With TZ: ${endTimeWithTz}`);
+        logger.debug(`[createTest] Input start_time: ${testData.start_time} -> With TZ: ${startTimeWithTz}`);
+        logger.debug(`[createTest] Input end_time: ${testData.end_time} -> With TZ: ${endTimeWithTz}`);
         const query = `
       INSERT INTO tests (
         title, grade, student_group, test_type, start_time, end_time, 
@@ -547,14 +606,14 @@ class TestService {
         const result = await database.query(query, values);
         const row = result.rows[0];
         if (row) {
-            console.log(`[createTest] DB returned start_time: ${row.start_time}, type: ${typeof row.start_time}, instanceof Date: ${row.start_time instanceof Date}`);
+            logger.debug(`[createTest] DB returned start_time: ${row.start_time}, type: ${typeof row.start_time}, instanceof Date: ${row.start_time instanceof Date}`);
             row.start_time = formatLocal(row.start_time);
             row.end_time = formatLocal(row.end_time);
             row.start_time_utc = formatUtc(row.start_time);
             row.end_time_utc = formatUtc(row.end_time);
             row.start_time_ms = formatMs(row.start_time);
             row.end_time_ms = formatMs(row.end_time);
-            console.log(`[createTest] Final: start_time=${row.start_time}, start_time_utc=${row.start_time_utc}, start_time_ms=${row.start_time_ms}`);
+            logger.debug(`[createTest] Final: start_time=${row.start_time}, start_time_utc=${row.start_time_utc}, start_time_ms=${row.start_time_ms}`);
         }
         return row;
     }
@@ -574,8 +633,8 @@ class TestService {
         const withImages = await Promise.all(tests.map(async (r) => {
             const startTimeLocal = formatLocal(r.start_time);
             const endTimeLocal = formatLocal(r.end_time);
-            console.log(`[getAllTests] Test ${r.id}: raw start_time=${r.start_time}, type=${typeof r.start_time}, instanceof Date=${r.start_time instanceof Date}`);
-            console.log(`[getAllTests] Test ${r.id}: startTimeLocal=${startTimeLocal}, computed UTC=${formatUtc(startTimeLocal)}`);
+            logger.debug(`[getAllTests] Test ${r.id}: raw start_time=${r.start_time}, type=${typeof r.start_time}, instanceof Date=${r.start_time instanceof Date}`);
+            logger.debug(`[getAllTests] Test ${r.id}: startTimeLocal=${startTimeLocal}, computed UTC=${formatUtc(startTimeLocal)}`);
             const formatted = {
                 ...r,
                 start_time: startTimeLocal,
@@ -621,7 +680,7 @@ class TestService {
             };
         }
         catch (error) {
-            console.error("Error in getTestById:", error);
+            logger.error("Error in getTestById:", error);
             throw error;
         }
     }
@@ -782,7 +841,7 @@ class TestService {
                 await this.regradeSubmissionsForTest(testId, newCorrectAnswers);
             }
             catch (error) {
-                console.error("Error re-grading submissions after test update:", error);
+                logger.error("Error re-grading submissions after test update:", error);
             }
         }
         return updatedTest;
@@ -814,13 +873,13 @@ class TestService {
                     await database.query(updateQ, [newScore, submission.id]);
                 }
                 catch (error) {
-                    console.error(`Error re-grading submission ${submission.id}:`, error);
+                    logger.error(`Error re-grading submission ${submission.id}:`, error);
                 }
             }
-            console.log(`Successfully re-graded ${submissions.length} submissions for test ${testId}`);
+            logger.info(`Successfully re-graded ${submissions.length} submissions for test ${testId}`);
         }
         catch (error) {
-            console.error("Error in regradeSubmissionsForTest:", error);
+            logger.error("Error in regradeSubmissionsForTest:", error);
             throw error;
         }
     }
@@ -869,11 +928,11 @@ class TestService {
             const studentQuery = "SELECT grade, student_group FROM students WHERE id = $1";
             const studentResult = await database.query(studentQuery, [studentId]);
             if (studentResult.rows.length === 0) {
-                console.log(`Student ${studentId} not found`);
+                logger.info(`Student ${studentId} not found`);
                 return [];
             }
             const student = studentResult.rows[0];
-            console.log(`Fetching tests for student ${studentId} (grade: ${student.grade}, group: ${student.student_group})`);
+            logger.debug(`Fetching tests for student ${studentId} (grade: ${student.grade}, group: ${student.student_group})`);
             const query = `
         WITH student_submissions AS (
           SELECT test_id, true as is_submitted, created_at as submitted_at
@@ -897,28 +956,17 @@ class TestService {
           AND t.end_time >= (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo')
         ORDER BY t.start_time ASC
       `;
-            console.log("Executing query with params:", [
-                studentId,
-                student.grade,
-                student.student_group,
-            ]);
-            const debugQuery = `SELECT 
-        CURRENT_TIMESTAMP as server_now, 
-        CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' as cairo_now,
-        (SELECT start_time FROM tests WHERE id = (SELECT MAX(id) FROM tests)) as latest_test_start`;
-            const debugResult = await database.query(debugQuery);
-            console.log("[DEBUG] PostgreSQL times:", debugResult.rows[0]);
             const result = await database.query(query, [
                 studentId,
                 student.grade,
                 student.student_group,
             ]);
             const tests = result.rows || [];
-            console.log(`Found ${tests.length} available tests for student ${studentId}`);
+            logger.info(`Found ${tests.length} available tests for student ${studentId}`);
             return tests.map((test) => {
                 const startTimeLocal = formatLocal(test.start_time);
                 const endTimeLocal = formatLocal(test.end_time);
-                console.log(`[getAvailableTests] Test ${test.id}: status=${test.test_status}, raw start_time=${test.start_time}, startTimeLocal=${startTimeLocal}`);
+                logger.debug(`[getAvailableTests] Test ${test.id}: status=${test.test_status}, raw start_time=${test.start_time}, startTimeLocal=${startTimeLocal}`);
                 return {
                     ...test,
                     start_time: startTimeLocal,
@@ -933,7 +981,7 @@ class TestService {
             });
         }
         catch (error) {
-            console.error("Error in getAvailableTestsForStudent:", error);
+            logger.error("Error in getAvailableTestsForStudent:", error);
             return [];
         }
     }
@@ -993,7 +1041,7 @@ class TestService {
                         questions = JSON.parse(testData.correct_answers);
                     }
                     catch (error) {
-                        console.error("Error parsing string correct_answers:", error);
+                        logger.error("Error parsing string correct_answers:", error);
                         questions = { questions: [] };
                     }
                 }
@@ -1217,7 +1265,7 @@ class TestService {
                 }
             }
             catch (e) {
-                console.error("Failed to parse result JSON fields", e);
+                logger.error("Failed to parse result JSON fields", e);
             }
             if (testResult.visible_score !== null &&
                 testResult._parsed_correct_answers) {
@@ -1375,7 +1423,7 @@ class TestService {
             return this.calculateScore(submission?.answers, test.correct_answers, test.test_type);
         }
         catch (e) {
-            console.error("Error computeScoreWithManual:", e);
+            logger.error("Error computeScoreWithManual:", e);
             return 0;
         }
     }
@@ -1448,7 +1496,7 @@ class TestService {
             return this.submitTest(testId, studentId, answers);
         }
         catch (error) {
-            console.error("Error in uploadBubbleSheet:", error);
+            logger.error("Error in uploadBubbleSheet:", error);
             const answers = {
                 file_path: filePath,
                 extracted_answers: {},
@@ -1497,11 +1545,11 @@ class TestService {
             for (const f of Array.from(new Set(filesToDelete.filter(Boolean)))) {
                 try {
                     if (typeof f === "string" && f && !f.startsWith("http")) {
-                        await unlinkAsync(f).catch((err) => console.error("Failed deleting submission file", f, err));
+                        await unlinkAsync(f).catch((err) => logger.error("Failed deleting submission file", f, err));
                     }
                 }
                 catch (e) {
-                    console.error("Error unlinking file", f, e);
+                    logger.error("Error unlinking file", f, e);
                 }
             }
             if (isPhysicalSheet && testId && studentId) {
@@ -1532,18 +1580,18 @@ class TestService {
                     const outDir = path.resolve(scriptDir, "tests", `${testId}-${studentId}`);
                     if (fs.existsSync(outDir)) {
                         fs.rmSync(outDir, { recursive: true, force: true });
-                        console.log(`Deleted grading output directory: ${outDir}`);
+                        logger.info(`Deleted grading output directory: ${outDir}`);
                     }
                 }
                 catch (e) {
-                    console.error("Error deleting grading output directory:", e);
+                    logger.error("Error deleting grading output directory:", e);
                 }
             }
             return true;
         }
         catch (error) {
             await client.query("ROLLBACK");
-            console.error("Error deleting submission:", error);
+            logger.error("Error deleting submission:", error);
             throw error;
         }
         finally {
@@ -1588,7 +1636,7 @@ class TestService {
             }
         }
         catch (e) {
-            console.error("Error calculating score:", e);
+            logger.error("Error calculating score:", e);
         }
         return 0;
     }
@@ -1633,7 +1681,7 @@ class TestService {
             }
         }
         catch (error) {
-            await Promise.all(images.map((img) => unlinkAsync(img.imagePath).catch(console.error)));
+            await Promise.all(images.map((img) => unlinkAsync(img.imagePath).catch((unlinkError) => logger.error("Failed deleting uploaded image during rollback:", img.imagePath, unlinkError))));
             throw error;
         }
     }
@@ -1687,7 +1735,7 @@ class TestService {
                     await unlinkAsync(imagePath);
                 }
                 catch (error) {
-                    console.error(`Failed to delete image file: ${imagePath}`, error);
+                    logger.error(`Failed to delete image file: ${imagePath}`, error);
                 }
                 await client.query("COMMIT");
                 return true;
@@ -1712,7 +1760,7 @@ class TestService {
             const deleteQuery = "DELETE FROM test_images WHERE test_id = $1";
             const deleteResult = await client.query(deleteQuery, [testId]);
             if (deleteResult.rowCount && deleteResult.rowCount > 0) {
-                const deletePromises = getResult.rows.map((row) => unlinkAsync(row.image_path).catch((error) => console.error(`Failed to delete image file: ${row.image_path}`, error)));
+                const deletePromises = getResult.rows.map((row) => unlinkAsync(row.image_path).catch((error) => logger.error(`Failed to delete image file: ${row.image_path}`, error)));
                 await Promise.all(deletePromises);
                 await client.query("COMMIT");
                 return true;
@@ -1722,7 +1770,7 @@ class TestService {
         }
         catch (error) {
             await client.query("ROLLBACK");
-            console.error("Error deleting test images:", error);
+            logger.error("Error deleting test images:", error);
             throw error;
         }
         finally {
@@ -2070,25 +2118,25 @@ class TestService {
             return { rank: -1, total: submissions.rows.length, score: null };
         }
         catch (error) {
-            console.error("Error calculating student rank:", error);
+            logger.error("Error calculating student rank:", error);
             return { rank: -1, total: 0, score: null };
         }
     }
     async regradeAllSubmissions(testId) {
-        console.log(`Starting regrading process for test ${testId}`);
+        logger.info(`Starting regrading process for test ${testId}`);
         try {
             const test = await this.getTestById(testId);
             if (!test) {
-                console.error(`Regrading failed: test ${testId} not found.`);
+                logger.error(`Regrading failed: test ${testId} not found.`);
                 return;
             }
             const supported = new Set(["MCQ", "BUBBLE_SHEET", "PHYSICAL_SHEET"]);
             if (!supported.has(test.test_type)) {
-                console.error(`Regrading failed: test ${testId} type "${test.test_type}" is not supported.`);
+                logger.error(`Regrading failed: test ${testId} type "${test.test_type}" is not supported.`);
                 return;
             }
             if (!test.correct_answers) {
-                console.error(`Regrading skipped: test ${testId} has no correct_answers configured.`);
+                logger.error(`Regrading skipped: test ${testId} has no correct_answers configured.`);
                 return;
             }
             let parsedCorrect = test.correct_answers;
@@ -2097,13 +2145,13 @@ class TestService {
                     parsedCorrect = JSON.parse(parsedCorrect);
                 }
                 catch (e) {
-                    console.error(`Regrading failed: invalid correct_answers JSON for test ${testId}.`, e);
+                    logger.error(`Regrading failed: invalid correct_answers JSON for test ${testId}.`, e);
                     return;
                 }
             }
             const submissions = await this.getTestSubmissions(testId);
             if (!submissions || submissions.length === 0) {
-                console.log(`No submissions found for test ${testId}. Nothing to regrade.`);
+                logger.info(`No submissions found for test ${testId}. Nothing to regrade.`);
                 return;
             }
             let updatedCount = 0;
@@ -2133,13 +2181,13 @@ class TestService {
                     }
                 }
                 catch (e) {
-                    console.error(`Failed to regrade submission ${submission.id} for test ${testId}:`, e);
+                    logger.error(`Failed to regrade submission ${submission.id} for test ${testId}:`, e);
                 }
             }
-            console.log(`Successfully regraded test ${testId}. Updated ${updatedCount}/${submissions.length} submissions.`);
+            logger.info(`Successfully regraded test ${testId}. Updated ${updatedCount}/${submissions.length} submissions.`);
         }
         catch (error) {
-            console.error(`An error occurred during the regrading process for test ${testId}:`, error);
+            logger.error(`An error occurred during the regrading process for test ${testId}:`, error);
         }
     }
     async overrideGrade(submissionId, score, teacherComment) {

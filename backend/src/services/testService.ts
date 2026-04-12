@@ -4,6 +4,7 @@ import path from "path";
 import { promisify } from "util";
 import type { Student, Test, TestAnswer, TestImage } from "../types";
 import database from "./database";
+import logger from "./logger";
 
 const unlinkAsync = promisify(fs.unlink);
 
@@ -143,7 +144,7 @@ class TestService {
 			}
 		} catch (e) {
 			// If parsing fails, leave as-is and log for debugging
-			console.error("Failed to parse submission JSON fields", e);
+			logger.error("Failed to parse submission JSON fields", e);
 		}
 		return s;
 	}
@@ -286,32 +287,55 @@ class TestService {
 				fullImagePath,
 			];
 			console.log(
-				`[REGRADE] Running Python script for submission ${submissionId}`,
+				`[REGRADE] Running grading script for submission ${submissionId}`,
 			);
-			console.log(`[REGRADE] Command: ${pyExec} ${args.join(" ")}`);
-			console.log(`[REGRADE] Working directory: ${scriptDir}`);
-			console.log(`[REGRADE] Input image: ${fullImagePath}`);
 
-			await new Promise<void>((resolve) => {
+			// Delete stale output files before regrade
+			const outJsonPre = path.join(outDir, `${testId}-${studentId}.json`);
+			const outImgPre = path.join(outDir, `${testId}-${studentId}.jpg`);
+			try {
+				if (fs.existsSync(outJsonPre)) fs.unlinkSync(outJsonPre);
+			} catch {}
+			try {
+				if (fs.existsSync(outImgPre)) fs.unlinkSync(outImgPre);
+			} catch {}
+
+			const exitCode = await new Promise<number | null>((resolve) => {
 				const child = spawn(pyExec, args, {
 					cwd: scriptDir,
-					stdio: "inherit",
+					stdio: ["ignore", "pipe", "pipe"],
 					shell: process.platform === "win32",
+				});
+				child.stdout?.on("data", (data: Buffer) => {
+					const msg = data.toString().trim();
+					if (msg) console.log(`[GRADING] ${msg}`);
+				});
+				child.stderr?.on("data", (data: Buffer) => {
+					const msg = data.toString().trim();
+					if (msg) console.error(`[GRADING ERROR] ${msg}`);
 				});
 				child.on("close", (code) => {
 					console.log(
-						`[REGRADE] Python script finished for submission ${submissionId} with exit code: ${code}`,
+						`[REGRADE] Script finished for submission ${submissionId} (exit ${code})`,
 					);
-					resolve();
+					resolve(code);
 				});
 				child.on("error", (err) => {
 					console.error(
-						`[REGRADE] Python script error for submission ${submissionId}:`,
-						err,
+						`[REGRADE] Script error for submission ${submissionId}:`,
+						err.message,
 					);
-					resolve();
+					resolve(null);
 				});
 			});
+
+			if (exitCode !== 0) {
+				return {
+					success: false,
+					score: null,
+					message: `Grading script failed with exit code ${exitCode}`,
+				};
+			}
 
 			// Read the output JSON
 			const outJson = path.join(outDir, `${testId}-${studentId}.json`);
@@ -370,7 +394,11 @@ class TestService {
 				message: "Submission regraded successfully",
 			};
 		} catch (error) {
-			console.error("Error regrading physical submission:", error);
+			logger.error("Error regrading physical submission:", error);
+			console.error(
+				`[REGRADE] Error:`,
+				error instanceof Error ? error.message : error,
+			);
 			return {
 				success: false,
 				score: null,
@@ -395,9 +423,8 @@ class TestService {
 		}>
 	> {
 		const { testId, nQuestions, studentsOrdered, files, namesAsIds } = params;
-		console.log(`[GRADING] Starting batch grading for test ${testId}`);
 		console.log(
-			`[GRADING] Number of questions: ${nQuestions}, Students: ${studentsOrdered.length}, Files: ${files.length}, namesAsIds: ${namesAsIds}`,
+			`[GRADING] Starting batch grading for test ${testId} (${studentsOrdered.length} students, ${files.length} files, ${nQuestions} questions)`,
 		);
 
 		// Determine python executable based on platform
@@ -503,31 +530,61 @@ class TestService {
 				"-i",
 				path.resolve(chosen.path),
 			];
-			console.log(`[GRADING] Running Python script for student ${studentId}`);
-			console.log(`[GRADING] Command: ${pyExec} ${args.join(" ")}`);
-			console.log(`[GRADING] Working directory: ${scriptDir}`);
-			console.log(`[GRADING] Output directory: ${outDir}`);
+			console.log(`[GRADING] Running script for student ${studentId}`);
 
-			await new Promise<void>((resolve) => {
+			const outJsonPre = path.join(outDir, `${testId}-${studentId}.json`);
+			const outImgPre = path.join(outDir, `${testId}-${studentId}.jpg`);
+			try {
+				if (fs.existsSync(outJsonPre)) fs.unlinkSync(outJsonPre);
+			} catch {
+				// Ignore stale output cleanup errors
+			}
+			try {
+				if (fs.existsSync(outImgPre)) fs.unlinkSync(outImgPre);
+			} catch {
+				// Ignore stale output cleanup errors
+			}
+
+			const exitCode = await new Promise<number | null>((resolve) => {
 				const child = spawn(pyExec, args, {
 					cwd: scriptDir,
-					stdio: "inherit",
+					stdio: ["ignore", "pipe", "pipe"],
 					shell: process.platform === "win32",
+				});
+				child.stdout?.on("data", (data: Buffer) => {
+					const msg = data.toString().trim();
+					if (msg) console.log(`[GRADING] ${msg}`);
+				});
+				child.stderr?.on("data", (data: Buffer) => {
+					const msg = data.toString().trim();
+					if (msg) console.error(`[GRADING ERROR] ${msg}`);
 				});
 				child.on("close", (code) => {
 					console.log(
-						`[GRADING] Python script finished for student ${studentId} with exit code: ${code}`,
+						`[GRADING] Script finished for student ${studentId} (exit ${code})`,
 					);
-					resolve();
+					resolve(code);
 				});
 				child.on("error", (err) => {
 					console.error(
-						`[GRADING] Python script error for student ${studentId}:`,
-						err,
+						`[GRADING ERROR] Script error for student ${studentId}: ${err.message}`,
 					);
-					resolve();
+					resolve(null);
 				});
 			});
+
+			if (exitCode !== 0) {
+				logger.error(
+					`Batch grading script failed for student ${studentId} with exit code ${exitCode}`,
+				);
+				results.push({
+					student_id: studentId as number,
+					submission_id: -1,
+					score: null,
+					output_dir: outDir,
+				});
+				continue;
+			}
 
 			// After script finishes, read JSON and image
 			const outJson = path.join(outDir, `${testId}-${studentId}.json`);
@@ -618,6 +675,8 @@ class TestService {
 			});
 		}
 
+		console.log(`[GRADING] Finished batch grading for test ${testId}`);
+
 		return results;
 	}
 
@@ -680,10 +739,10 @@ class TestService {
 		const startTimeWithTz = ensureCairoTimezone(testData.start_time);
 		const endTimeWithTz = ensureCairoTimezone(testData.end_time);
 
-		console.log(
+		logger.debug(
 			`[createTest] Input start_time: ${testData.start_time} -> With TZ: ${startTimeWithTz}`,
 		);
-		console.log(
+		logger.debug(
 			`[createTest] Input end_time: ${testData.end_time} -> With TZ: ${endTimeWithTz}`,
 		);
 
@@ -718,7 +777,7 @@ class TestService {
 		// Format timestamps as local wall-time strings before returning
 		const row = result.rows[0];
 		if (row) {
-			console.log(
+			logger.debug(
 				`[createTest] DB returned start_time: ${row.start_time}, type: ${typeof row.start_time}, instanceof Date: ${row.start_time instanceof Date}`,
 			);
 
@@ -731,7 +790,7 @@ class TestService {
 			row.start_time_ms = formatMs(row.start_time);
 			row.end_time_ms = formatMs(row.end_time);
 
-			console.log(
+			logger.debug(
 				`[createTest] Final: start_time=${row.start_time}, start_time_utc=${row.start_time_utc}, start_time_ms=${row.start_time_ms}`,
 			);
 		}
@@ -760,11 +819,10 @@ class TestService {
 				const startTimeLocal = formatLocal(r.start_time);
 				const endTimeLocal = formatLocal(r.end_time);
 
-				// Debug logging
-				console.log(
+				logger.debug(
 					`[getAllTests] Test ${r.id}: raw start_time=${r.start_time}, type=${typeof r.start_time}, instanceof Date=${r.start_time instanceof Date}`,
 				);
-				console.log(
+				logger.debug(
 					`[getAllTests] Test ${r.id}: startTimeLocal=${startTimeLocal}, computed UTC=${formatUtc(startTimeLocal)}`,
 				);
 
@@ -831,7 +889,7 @@ class TestService {
 				images,
 			};
 		} catch (error) {
-			console.error("Error in getTestById:", error);
+			logger.error("Error in getTestById:", error);
 			throw error;
 		}
 	}
@@ -1061,7 +1119,7 @@ class TestService {
 			try {
 				await this.regradeSubmissionsForTest(testId, newCorrectAnswers);
 			} catch (error) {
-				console.error("Error re-grading submissions after test update:", error);
+				logger.error("Error re-grading submissions after test update:", error);
 				// Don't throw - the test update was successful, grading is secondary
 			}
 		}
@@ -1111,16 +1169,16 @@ class TestService {
           `;
 					await database.query(updateQ, [newScore, submission.id]);
 				} catch (error) {
-					console.error(`Error re-grading submission ${submission.id}:`, error);
+					logger.error(`Error re-grading submission ${submission.id}:`, error);
 					// Continue with next submission
 				}
 			}
 
-			console.log(
+			logger.info(
 				`Successfully re-graded ${submissions.length} submissions for test ${testId}`,
 			);
 		} catch (error) {
-			console.error("Error in regradeSubmissionsForTest:", error);
+			logger.error("Error in regradeSubmissionsForTest:", error);
 			throw error;
 		}
 	}
@@ -1187,12 +1245,12 @@ class TestService {
 			const studentResult = await database.query(studentQuery, [studentId]);
 
 			if (studentResult.rows.length === 0) {
-				console.log(`Student ${studentId} not found`);
+				logger.info(`Student ${studentId} not found`);
 				return [];
 			}
 
 			const student = studentResult.rows[0];
-			console.log(
+			logger.debug(
 				`Fetching tests for student ${studentId} (grade: ${student.grade}, group: ${student.student_group})`,
 			);
 
@@ -1223,20 +1281,6 @@ class TestService {
         ORDER BY t.start_time ASC
       `;
 
-			console.log("Executing query with params:", [
-				studentId,
-				student.grade,
-				student.student_group,
-			]);
-
-			// Debug: check what times PostgreSQL sees
-			const debugQuery = `SELECT 
-        CURRENT_TIMESTAMP as server_now, 
-        CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo' as cairo_now,
-        (SELECT start_time FROM tests WHERE id = (SELECT MAX(id) FROM tests)) as latest_test_start`;
-			const debugResult = await database.query(debugQuery);
-			console.log("[DEBUG] PostgreSQL times:", debugResult.rows[0]);
-
 			const result = await database.query(query, [
 				studentId,
 				student.grade,
@@ -1244,7 +1288,7 @@ class TestService {
 			]);
 
 			const tests = result.rows || [];
-			console.log(
+			logger.info(
 				`Found ${tests.length} available tests for student ${studentId}`,
 			);
 
@@ -1254,8 +1298,7 @@ class TestService {
 				const startTimeLocal = formatLocal(test.start_time);
 				const endTimeLocal = formatLocal(test.end_time);
 
-				// Debug logging
-				console.log(
+				logger.debug(
 					`[getAvailableTests] Test ${test.id}: status=${test.test_status}, raw start_time=${test.start_time}, startTimeLocal=${startTimeLocal}`,
 				);
 
@@ -1273,7 +1316,7 @@ class TestService {
 				};
 			});
 		} catch (error) {
-			console.error("Error in getAvailableTestsForStudent:", error);
+			logger.error("Error in getAvailableTestsForStudent:", error);
 			return [];
 		}
 	}
@@ -1356,7 +1399,7 @@ class TestService {
 					try {
 						questions = JSON.parse(testData.correct_answers);
 					} catch (error) {
-						console.error("Error parsing string correct_answers:", error);
+						logger.error("Error parsing string correct_answers:", error);
 						questions = { questions: [] };
 					}
 				} else {
@@ -1647,7 +1690,7 @@ class TestService {
 					testResult._parsed_correct_answers = null;
 				}
 			} catch (e) {
-				console.error("Failed to parse result JSON fields", e);
+				logger.error("Failed to parse result JSON fields", e);
 			}
 
 			// If score is visible, also include correct answers for comparison
@@ -1831,7 +1874,7 @@ class TestService {
 				test.test_type,
 			);
 		} catch (e) {
-			console.error("Error computeScoreWithManual:", e);
+			logger.error("Error computeScoreWithManual:", e);
 			return 0;
 		}
 	}
@@ -1925,7 +1968,7 @@ class TestService {
 			// Use submitTest which will insert or update existing submission
 			return this.submitTest(testId, studentId, answers);
 		} catch (error) {
-			console.error("Error in uploadBubbleSheet:", error);
+			logger.error("Error in uploadBubbleSheet:", error);
 			// Fallback: still attempt to submit with the provided path
 			const answers = {
 				file_path: filePath,
@@ -1986,11 +2029,11 @@ class TestService {
 				try {
 					if (typeof f === "string" && f && !f.startsWith("http")) {
 						await unlinkAsync(f).catch((err) =>
-							console.error("Failed deleting submission file", f, err),
+							logger.error("Failed deleting submission file", f, err),
 						);
 					}
 				} catch (e) {
-					console.error("Error unlinking file", f, e);
+					logger.error("Error unlinking file", f, e);
 				}
 			}
 
@@ -2032,10 +2075,10 @@ class TestService {
 					if (fs.existsSync(outDir)) {
 						// Recursively delete the directory
 						fs.rmSync(outDir, { recursive: true, force: true });
-						console.log(`Deleted grading output directory: ${outDir}`);
+						logger.info(`Deleted grading output directory: ${outDir}`);
 					}
 				} catch (e) {
-					console.error("Error deleting grading output directory:", e);
+					logger.error("Error deleting grading output directory:", e);
 					// Don't throw - this is best-effort cleanup
 				}
 			}
@@ -2043,7 +2086,7 @@ class TestService {
 			return true;
 		} catch (error) {
 			await client.query("ROLLBACK");
-			console.error("Error deleting submission:", error);
+			logger.error("Error deleting submission:", error);
 			throw error;
 		} finally {
 			client.release();
@@ -2104,7 +2147,7 @@ class TestService {
 				return Math.round((correct / keys.length) * 100 * 100) / 100;
 			}
 		} catch (e) {
-			console.error("Error calculating score:", e);
+			logger.error("Error calculating score:", e);
 		}
 
 		return 0;
@@ -2159,7 +2202,15 @@ class TestService {
 		} catch (error) {
 			// Clean up uploaded files on error
 			await Promise.all(
-				images.map((img) => unlinkAsync(img.imagePath).catch(console.error)),
+				images.map((img) =>
+					unlinkAsync(img.imagePath).catch((unlinkError) =>
+						logger.error(
+							"Failed deleting uploaded image during rollback:",
+							img.imagePath,
+							unlinkError,
+						),
+					),
+				),
 			);
 			throw error; // Re-throw after cleanup
 		}
@@ -2233,7 +2284,7 @@ class TestService {
 				try {
 					await unlinkAsync(imagePath);
 				} catch (error) {
-					console.error(`Failed to delete image file: ${imagePath}`, error);
+					logger.error(`Failed to delete image file: ${imagePath}`, error);
 					// Continue even if file deletion fails
 				}
 				await client.query("COMMIT");
@@ -2267,7 +2318,7 @@ class TestService {
 				// Delete all image files
 				const deletePromises = getResult.rows.map((row) =>
 					unlinkAsync(row.image_path).catch((error) =>
-						console.error(
+						logger.error(
 							`Failed to delete image file: ${row.image_path}`,
 							error,
 						),
@@ -2283,7 +2334,7 @@ class TestService {
 			return false;
 		} catch (error) {
 			await client.query("ROLLBACK");
-			console.error("Error deleting test images:", error);
+			logger.error("Error deleting test images:", error);
 			throw error;
 		} finally {
 			client.release();
@@ -2698,31 +2749,31 @@ class TestService {
 			// This should not happen if we found the student's submission
 			return { rank: -1, total: submissions.rows.length, score: null };
 		} catch (error) {
-			console.error("Error calculating student rank:", error);
+			logger.error("Error calculating student rank:", error);
 			return { rank: -1, total: 0, score: null };
 		}
 	}
 
 	async regradeAllSubmissions(testId: number): Promise<void> {
-		console.log(`Starting regrading process for test ${testId}`);
+		logger.info(`Starting regrading process for test ${testId}`);
 		try {
 			// Load test and validate
 			const test = await this.getTestById(testId);
 			if (!test) {
-				console.error(`Regrading failed: test ${testId} not found.`);
+				logger.error(`Regrading failed: test ${testId} not found.`);
 				return;
 			}
 
 			const supported = new Set(["MCQ", "BUBBLE_SHEET", "PHYSICAL_SHEET"]);
 			if (!supported.has(test.test_type)) {
-				console.error(
+				logger.error(
 					`Regrading failed: test ${testId} type "${test.test_type}" is not supported.`,
 				);
 				return;
 			}
 
 			if (!test.correct_answers) {
-				console.error(
+				logger.error(
 					`Regrading skipped: test ${testId} has no correct_answers configured.`,
 				);
 				return;
@@ -2734,7 +2785,7 @@ class TestService {
 				try {
 					parsedCorrect = JSON.parse(parsedCorrect);
 				} catch (e) {
-					console.error(
+					logger.error(
 						`Regrading failed: invalid correct_answers JSON for test ${testId}.`,
 						e,
 					);
@@ -2745,7 +2796,7 @@ class TestService {
 			// Fetch all submissions
 			const submissions = await this.getTestSubmissions(testId);
 			if (!submissions || submissions.length === 0) {
-				console.log(
+				logger.info(
 					`No submissions found for test ${testId}. Nothing to regrade.`,
 				);
 				return;
@@ -2792,18 +2843,18 @@ class TestService {
 						updatedCount++;
 					}
 				} catch (e) {
-					console.error(
+					logger.error(
 						`Failed to regrade submission ${submission.id} for test ${testId}:`,
 						e,
 					);
 				}
 			}
 
-			console.log(
+			logger.info(
 				`Successfully regraded test ${testId}. Updated ${updatedCount}/${submissions.length} submissions.`,
 			);
 		} catch (error) {
-			console.error(
+			logger.error(
 				`An error occurred during the regrading process for test ${testId}:`,
 				error,
 			);

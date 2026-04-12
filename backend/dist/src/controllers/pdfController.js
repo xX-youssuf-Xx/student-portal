@@ -5,6 +5,7 @@ import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { v4 as uuidv4 } from "uuid";
+import logger from "../services/logger";
 import pdfService from "../services/pdfService";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,12 +19,12 @@ const checkGhostscript = async () => {
             console.warn("Ghostscript warning:", stderr);
         }
         const version = stdout.trim();
-        console.log(`Ghostscript version: ${version}`);
+        logger.info(`Ghostscript version: ${version}`);
         return { available: true, version };
     }
     catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        console.error("Ghostscript check failed:", errorMessage);
+        logger.error("Ghostscript check failed:", errorMessage);
         return {
             available: false,
             error: "Ghostscript is required but not installed or not in PATH",
@@ -48,11 +49,11 @@ export const uploadTestPdf = [
     upload.single("pdf"),
     async (req, res) => {
         const requestId = uuidv4();
-        console.log(`[${requestId}] Starting PDF upload and processing`);
+        logger.info(`[${requestId}] Starting PDF upload and processing`);
         try {
             const gsCheck = await checkGhostscript();
             if (!gsCheck.available) {
-                console.error(`[${requestId}] Ghostscript not available:`, gsCheck.error);
+                logger.error(`[${requestId}] Ghostscript not available:`, gsCheck.error);
                 res.status(500).json({
                     error: "PDF processing service unavailable",
                     details: gsCheck.error || "Ghostscript is required for PDF processing",
@@ -60,29 +61,29 @@ export const uploadTestPdf = [
                 return;
             }
             if (!req.file) {
-                console.error(`[${requestId}] No file uploaded`);
+                logger.error(`[${requestId}] No file uploaded`);
                 res.status(400).json({ error: "No file uploaded" });
                 return;
             }
             const testId = req.params.testId;
             if (!testId) {
-                console.error(`[${requestId}] No test ID provided`);
+                logger.error(`[${requestId}] No test ID provided`);
                 res.status(400).json({ error: "Test ID is required" });
                 return;
             }
-            console.log(`[${requestId}] Processing PDF for test ${testId}, size: ${req.file.size} bytes`);
+            logger.info(`[${requestId}] Processing PDF for test ${testId}, size: ${req.file.size} bytes`);
             const testDir = path.join(CONVERTED_DIR, testId);
             if (!fs.existsSync(testDir)) {
                 fs.mkdirSync(testDir, { recursive: true });
-                console.log(`[${requestId}] Created directory: ${testDir}`);
+                logger.info(`[${requestId}] Created directory: ${testDir}`);
             }
             try {
-                console.log(`[${requestId}] Saving PDF file`);
+                logger.info(`[${requestId}] Saving PDF file`);
                 const savedPdf = await pdfService.savePdf(req.file, testId);
-                console.log(`[${requestId}] PDF saved: ${savedPdf.fileName}`);
-                console.log(`[${requestId}] Starting PDF to image conversion`);
+                logger.info(`[${requestId}] PDF saved: ${savedPdf.fileName}`);
+                logger.info(`[${requestId}] Starting PDF to image conversion`);
                 const imageUrls = await pdfService.convertPdfToImages(req.file.buffer, testId);
-                console.log(`[${requestId}] Converted PDF to ${imageUrls.length} pages`);
+                logger.info(`[${requestId}] Converted PDF to ${imageUrls.length} pages`);
                 if (imageUrls.length === 0) {
                     throw new Error("No pages were converted from the PDF");
                 }
@@ -93,24 +94,24 @@ export const uploadTestPdf = [
                     imageUrls,
                     ghostscriptVersion: gsCheck.version,
                 });
-                console.log(`[${requestId}] Request completed successfully`);
+                logger.info(`[${requestId}] Request completed successfully`);
             }
             catch (error) {
                 try {
                     if (fs.existsSync(testDir)) {
-                        console.log(`[${requestId}] Cleaning up after failed conversion`);
+                        logger.info(`[${requestId}] Cleaning up after failed conversion`);
                         fs.rmSync(testDir, { recursive: true, force: true });
                     }
                 }
                 catch (cleanupError) {
-                    console.error(`[${requestId}] Error during cleanup:`, cleanupError);
+                    logger.error(`[${requestId}] Error during cleanup:`, cleanupError);
                 }
                 throw error;
             }
         }
         catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
-            console.error(`[${requestId}] Error processing PDF:`, error);
+            logger.error(`[${requestId}] Error processing PDF:`, error);
             res.status(500).json({
                 error: "Failed to process PDF",
                 details: errorMessage,
@@ -128,7 +129,7 @@ export const getTestPage = async (req, res) => {
             details: "Test ID and page number are required",
             requestId,
         };
-        console.error(`[${requestId}] ${error.details}`);
+        logger.error(`[${requestId}] ${error.details}`);
         res.status(400).json(error);
         return;
     }
@@ -141,7 +142,7 @@ export const getTestPage = async (req, res) => {
                 details: `Page number must be a positive integer, got: ${pageNumber}`,
                 requestId,
             };
-            console.error(`[${requestId}] ${error.details}`);
+            logger.error(`[${requestId}] ${error.details}`);
             res.status(400).json(error);
             return;
         }
@@ -161,15 +162,15 @@ export const getTestPage = async (req, res) => {
                 details: `No test found with ID: ${testId}`,
                 requestId,
             };
-            console.error(`[${requestId}] ${error.details}`);
+            logger.error(`[${requestId}] ${error.details}`);
             res.status(404).json(error);
             return;
         }
         if (!pagePath) {
             const files = fs.readdirSync(testDir);
             const imageFiles = files.filter((file) => /^(page_)?\d+\.(jpg|jpeg|png)$/i.test(file));
-            console.error(`[${requestId}] Page ${pageNum} not found in ${testId}`);
-            console.error(`[${requestId}] Available pages:`, imageFiles);
+            logger.error(`[${requestId}] Page ${pageNum} not found in ${testId}`);
+            logger.error(`[${requestId}] Available pages:`, imageFiles);
             const availablePages = imageFiles.map((file) => {
                 const match = file.match(/^(?:page_)?(\d+)\./i);
                 return match ? match[1] : file;
@@ -182,7 +183,7 @@ export const getTestPage = async (req, res) => {
             });
             return;
         }
-        console.log(`[${requestId}] Serving page: ${pagePath}`);
+        logger.info(`[${requestId}] Serving page: ${pagePath}`);
         const ext = path.extname(pagePath).toLowerCase();
         const contentType = ext === ".png"
             ? "image/png"
@@ -194,7 +195,7 @@ export const getTestPage = async (req, res) => {
         res.setHeader("Expires", new Date(Date.now() + 31536000000).toUTCString());
         const stream = fs.createReadStream(pagePath);
         stream.on("error", (error) => {
-            console.error(`[${requestId}] Error reading file ${pagePath}:`, error);
+            logger.error(`[${requestId}] Error reading file ${pagePath}:`, error);
             if (!res.headersSent) {
                 res.status(500).json({
                     error: "Error reading page",
@@ -207,7 +208,7 @@ export const getTestPage = async (req, res) => {
     }
     catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        console.error(`[${requestId}] Error serving page:`, error);
+        logger.error(`[${requestId}] Error serving page:`, error);
         if (!res.headersSent) {
             res.status(500).json({
                 error: "Failed to serve page",
@@ -226,7 +227,7 @@ export const getTestPageCount = async (req, res) => {
             details: "Test ID is required",
             requestId,
         };
-        console.error(`[${requestId}] ${error.details}`);
+        logger.error(`[${requestId}] ${error.details}`);
         res.status(400).json(error);
         return;
     }
@@ -239,7 +240,7 @@ export const getTestPageCount = async (req, res) => {
                 details: `No test found with ID: ${testId}`,
                 requestId,
             };
-            console.error(`[${requestId}] ${error.details}`);
+            logger.error(`[${requestId}] ${error.details}`);
             res.status(404).json(error);
             return;
         }
@@ -254,7 +255,7 @@ export const getTestPageCount = async (req, res) => {
             return getPageNum(a) - getPageNum(b);
         });
         const pageCount = pageFiles.length;
-        console.log(`[${requestId}] Found ${pageCount} pages for test ${testId}`);
+        logger.info(`[${requestId}] Found ${pageCount} pages for test ${testId}`);
         if (pageCount === 0) {
             console.warn(`[${requestId}] No page images found in ${testDir}`);
             console.warn(`[${requestId}] All files in directory:`, files);
@@ -280,7 +281,7 @@ export const getTestPageCount = async (req, res) => {
     }
     catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        console.error(`[${requestId}] Error getting page count:`, error);
+        logger.error(`[${requestId}] Error getting page count:`, error);
         res.status(500).json({
             error: "Failed to get page count",
             details: errorMessage,

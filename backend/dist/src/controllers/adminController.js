@@ -1,3 +1,4 @@
+import logger from "../services/logger";
 import studentService from "../services/studentService";
 class AdminController {
     async getDashboard(req, res) {
@@ -13,7 +14,7 @@ class AdminController {
             });
         }
         catch (error) {
-            console.error("Error getting admin dashboard:", error);
+            logger.error("Error getting admin dashboard:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }
@@ -35,7 +36,7 @@ class AdminController {
             res.json({ stats });
         }
         catch (error) {
-            console.error("Error getting system stats:", error);
+            logger.error("Error getting system stats:", error);
             res.status(500).json({ message: "Internal server error" });
         }
     }

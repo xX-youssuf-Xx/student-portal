@@ -1,4 +1,5 @@
 import authService from "../services/authService";
+import logger from "../services/logger";
 import studentService from "../services/studentService";
 class StudentController {
     async getDashboard(req, res) {
@@ -15,7 +16,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error getting student dashboard:", error);
+            logger.error("Error getting student dashboard:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -35,7 +36,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error getting student profile:", error);
+            logger.error("Error getting student profile:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -47,7 +48,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error getting all students:", error);
+            logger.error("Error getting all students:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -71,7 +72,7 @@ class StudentController {
             res.json({ results });
         }
         catch (error) {
-            console.error("Error getting student results:", error);
+            logger.error("Error getting student results:", error);
             res.status(500).json({
                 message: "Internal server error",
                 error: error instanceof Error ? error.message : "Unknown error",
@@ -99,7 +100,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error getting student by ID:", error);
+            logger.error("Error getting student by ID:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -111,7 +112,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error creating student:", error);
+            logger.error("Error creating student:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -137,7 +138,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error updating student:", error);
+            logger.error("Error updating student:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -163,7 +164,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error deleting student:", error);
+            logger.error("Error deleting student:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
@@ -194,7 +195,7 @@ class StudentController {
             return;
         }
         catch (error) {
-            console.error("Error generating login token:", error);
+            logger.error("Error generating login token:", error);
             res.status(500).json({ message: "Internal server error" });
             return;
         }
