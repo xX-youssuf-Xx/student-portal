@@ -44,7 +44,12 @@ os.makedirs(output_dir, exist_ok=True)
 output_file = os.path.join(output_dir, f"{test_id}-{student_id}.jpg")
 output_json = os.path.join(output_dir, f"{test_id}-{student_id}.json")
 
+input_abs = os.path.abspath(input_file)
 for output_path in [output_file, output_json]:
+    output_abs = os.path.abspath(output_path)
+    if output_abs == input_abs:
+        print(f"[GRADING] skipping deletion because input==output: {output_path}")
+        continue
     if os.path.exists(output_path):
         os.remove(output_path)
 
@@ -217,32 +222,145 @@ def detect_answer_intensity(src_rgb, circles, threshold_factor=0.85):
     return "-"
 
 
-# Create PipelinesConfig with more aggressive settings
-cfg = config.PipelinesConfig()
-cfg.width_range = (180, 280)
-cfg.height_range = (45, 95)
-cfg.scaling_factors = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
-cfg.wh_ratio_range = (2.0, 5.0)
-cfg.group_size_range = (1, 10)  # type: ignore[assignment]
-cfg.dilation_iterations = [2]  # type: ignore[assignment]
-cfg.morph_kernels_thickness = [3]  # type: ignore[assignment]
+def build_cfg(
+    width_range,
+    height_range,
+    scales,
+    wh_ratio=(2.0, 5.0),
+    group_size=(1, 10),
+    dilation=None,
+    kernels=None,
+):
+    cfg = config.PipelinesConfig()
+    cfg.width_range = width_range
+    cfg.height_range = height_range
+    cfg.scaling_factors = scales
+    cfg.wh_ratio_range = wh_ratio
+    cfg.group_size_range = group_size  # type: ignore[assignment]
+    cfg.dilation_iterations = dilation or [2]  # type: ignore[assignment]
+    cfg.morph_kernels_thickness = kernels or [3]  # type: ignore[assignment]
+    return cfg
+
+
+def preprocess_for_detection(image_path, output_root):
+    src = cv2.imread(image_path)
+    if src is None:
+        return None
+
+    gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    enhanced = cv2.convertScaleAbs(enhanced, alpha=1.35, beta=-20)
+    enhanced = cv2.GaussianBlur(enhanced, (3, 3), 0)
+    enhanced_bgr = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+
+    tmp_path = os.path.join(output_root, "_preprocessed_input.jpg")
+    cv2.imwrite(tmp_path, enhanced_bgr)
+    return tmp_path
+
+
+def detect_boxes_with_fallback(image_path, output_root):
+    presets = [
+        (
+            "strict",
+            build_cfg(
+                (180, 280),
+                (45, 95),
+                [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4],
+                wh_ratio=(2.0, 5.0),
+                group_size=(1, 10),
+                dilation=[2],
+                kernels=[3],
+            ),
+        ),
+        (
+            "balanced",
+            build_cfg(
+                (150, 240),
+                (35, 80),
+                [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2],
+                wh_ratio=(1.8, 5.0),
+                group_size=(1, 12),
+                dilation=[1, 2, 3],
+                kernels=[2, 3, 4],
+            ),
+        ),
+        (
+            "relaxed",
+            build_cfg(
+                (120, 260),
+                (25, 100),
+                [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4],
+                wh_ratio=(1.5, 6.0),
+                group_size=(1, 14),
+                dilation=[1, 2, 3],
+                kernels=[2, 3, 4, 5],
+            ),
+        ),
+    ]
+
+    enhanced_input = preprocess_for_detection(image_path, output_root)
+    variants = [("original", image_path)]
+    if enhanced_input and os.path.exists(enhanced_input):
+        variants.append(("enhanced", enhanced_input))
+
+    best_rects = []
+    best_output_image = None
+    best_variant = "none"
+    best_name = "none"
+    best_count = -1
+
+    try:
+        for variant_name, variant_path in variants:
+            for name, cfg in presets:
+                rects, _, _, output_image = get_boxes(variant_path, cfg=cfg, plot=False)
+                rects_list = [tuple(r) for r in rects] if rects is not None else []
+                count = len(rects_list)
+                print(
+                    f"[GRADING] detect variant={variant_name} preset={name} rectangles={count}"
+                )
+
+                if output_image is not None and count > best_count:
+                    best_rects = rects_list
+                    best_output_image = output_image
+                    best_variant = variant_name
+                    best_name = name
+                    best_count = count
+
+                if output_image is not None and count >= 55:
+                    return rects_list, output_image, variant_name, name, count
+    finally:
+        if enhanced_input and os.path.exists(enhanced_input):
+            try:
+                os.remove(enhanced_input)
+            except OSError:
+                pass
+
+    return best_rects, best_output_image, best_variant, best_name, max(best_count, 0)
+
 
 try:
     if not os.path.exists(input_file):
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     print(f"Processing file: {input_file}")
-    rects, _, _, output_image = get_boxes(input_file, cfg=cfg, plot=False)
+    rects_list, output_image, variant_name, preset_name, preset_rect_count = (
+        detect_boxes_with_fallback(input_file, output_dir)
+    )
+    print(
+        f"[GRADING] selected variant={variant_name} preset={preset_name} with {preset_rect_count} rectangles"
+    )
 
     if output_image is not None:
         output_image_bgr = cv2.cvtColor(output_image, cv2.COLOR_RGB2BGR)
-        rects_list = [tuple(r) for r in rects] if rects is not None else []
 
         # Load source image
         src_bgr = cv2.imread(input_file)
         src_rgb = (
             cv2.cvtColor(src_bgr, cv2.COLOR_BGR2RGB) if src_bgr is not None else None
         )
+        if src_bgr is not None:
+            print(f"[GRADING] image size: {src_bgr.shape[1]}x{src_bgr.shape[0]}")
 
         # Prepare boxes with indices and centers
         indexed_boxes = []
@@ -251,6 +369,7 @@ try:
             cx = x + w / 2.0
             cy = y + h / 2.0
             indexed_boxes.append((idx, r, cx, cy))
+        before_filter_count = len(indexed_boxes)
 
         # Filter out false positives detected below the bubble-sheet area
         src_h = src_bgr.shape[0] if src_bgr is not None else 0
@@ -261,6 +380,13 @@ try:
         if len(indexed_boxes) > 55:
             indexed_boxes.sort(key=lambda b: b[1][2] * b[1][3], reverse=True)
             indexed_boxes = indexed_boxes[:55]
+        print(
+            f"[GRADING] rectangles before filter={before_filter_count} after filter={len(indexed_boxes)}"
+        )
+
+        if len(indexed_boxes) == 0:
+            logger.error("No candidate boxes detected after filtering")
+            sys.exit(1)
 
         # Cluster into columns
         columns = cluster_by_column(indexed_boxes)
@@ -275,6 +401,12 @@ try:
 
         # Infer missing boxes
         all_boxes = infer_missing_boxes(columns, expected_structure)
+        detected_box_count = len([b for b in all_boxes.values() if b["detected"]])
+        print(f"[GRADING] detected boxes after inference: {detected_box_count}")
+
+        if detected_box_count == 0:
+            logger.error("No answer boxes detected after inference")
+            sys.exit(1)
 
         # Create circle positions for all boxes
         detected_circles_per_box = {}
@@ -369,9 +501,7 @@ try:
                 json.dump(json_results, jf, indent=2)
 
             cv2.imwrite(output_file, output_image_bgr)
-            print(
-                f"Detected {len([b for b in all_boxes.values() if b['detected']])} out of 55 boxes"
-            )
+            print(f"Detected {detected_box_count} out of 55 boxes")
             print(f"Output saved: {output_file}")
         else:
             logger.error("No output image generated or n questions was not provided")

@@ -1,6 +1,8 @@
 # Ignore Python virtual environment for grading service
 scripts/grading_service/.venv/
 scripts/grading_service/tests/
+scripts/grading_service/*.jpg
+scripts/grading_service/*/
 
 # Node modules and build artifacts
 node_modules/
@@ -21,4 +23,3 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
-

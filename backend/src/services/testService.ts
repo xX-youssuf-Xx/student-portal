@@ -181,11 +181,19 @@ class TestService {
 
 			// Get the original bubble image path
 			let imagePath: string | null = null;
+			let sourceImagePath: string | null = null;
 			try {
 				const answers = submission.answers;
 				const answersObj =
 					typeof answers === "string" ? JSON.parse(answers) : answers;
+				sourceImagePath =
+					answersObj?.source_image_path ||
+					answersObj?.file_path ||
+					answersObj?.bubble_image_path ||
+					answersObj?.bubble_image ||
+					null;
 				imagePath =
+					sourceImagePath ||
 					answersObj?.bubble_image_path ||
 					answersObj?.file_path ||
 					answersObj?.bubble_image ||
@@ -242,6 +250,10 @@ class TestService {
 				};
 			}
 
+			console.log(
+				`[REGRADE] Source image for submission ${submissionId}: ${fullImagePath}`,
+			);
+
 			// Determine python executable and script directory
 			const pyExec = process.platform === "win32" ? "python" : "python3";
 			const candidates = [
@@ -271,6 +283,8 @@ class TestService {
 
 			const outDir = path.resolve(scriptDir, "tests", `${testId}-${studentId}`);
 			fs.mkdirSync(outDir, { recursive: true });
+			console.log(`[REGRADE] Script directory: ${scriptDir}`);
+			console.log(`[REGRADE] Output directory: ${outDir}`);
 
 			// Run the grading script
 			const args = [
@@ -293,11 +307,19 @@ class TestService {
 			// Delete stale output files before regrade
 			const outJsonPre = path.join(outDir, `${testId}-${studentId}.json`);
 			const outImgPre = path.join(outDir, `${testId}-${studentId}.jpg`);
+			const sameInputAsOutput =
+				path.resolve(fullImagePath) === path.resolve(outImgPre);
 			try {
 				if (fs.existsSync(outJsonPre)) fs.unlinkSync(outJsonPre);
 			} catch {}
 			try {
-				if (fs.existsSync(outImgPre)) fs.unlinkSync(outImgPre);
+				if (sameInputAsOutput) {
+					console.warn(
+						`[REGRADE] Input image equals output image path; keeping existing file: ${outImgPre}`,
+					);
+				} else if (fs.existsSync(outImgPre)) {
+					fs.unlinkSync(outImgPre);
+				}
 			} catch {}
 
 			const exitCode = await new Promise<number | null>((resolve) => {
@@ -339,11 +361,19 @@ class TestService {
 
 			// Read the output JSON
 			const outJson = path.join(outDir, `${testId}-${studentId}.json`);
+			const outImg = path.join(outDir, `${testId}-${studentId}.jpg`);
+			console.log(
+				`[REGRADE] Output status for submission ${submissionId}: json=${fs.existsSync(outJson)} image=${fs.existsSync(outImg)}`,
+			);
 			let detected: Record<string, string> | null = null;
 			try {
 				const raw = fs.readFileSync(outJson, "utf8");
 				detected = JSON.parse(raw);
-			} catch {
+			} catch (parseError) {
+				console.error(
+					`[REGRADE] Failed to parse output JSON for submission ${submissionId}:`,
+					parseError instanceof Error ? parseError.message : parseError,
+				);
 				detected = null;
 			}
 
@@ -363,8 +393,14 @@ class TestService {
 			);
 
 			// Update submission
+			const persistedSourcePath = (sourceImagePath || imagePath || fullImagePath).replace(
+				/\\/g,
+				"/",
+			);
 			const answersPayload = {
 				answers: detected,
+				source_image_path: persistedSourcePath,
+				file_path: persistedSourcePath,
 				bubble_image_path: path
 					.join(
 						"grading_service",
@@ -513,10 +549,24 @@ class TestService {
 				? fileByStudentId[studentId]
 				: indexedFiles[fileIdx];
 			if (!chosen) continue; // skip if no file
+			const inputPath = path.resolve(chosen.path);
+			if (!fs.existsSync(inputPath)) {
+				console.error(
+					`[GRADING ERROR] Source image missing for student ${studentId}: ${inputPath}`,
+				);
+				results.push({
+					student_id: studentId as number,
+					submission_id: -1,
+					score: null,
+					output_dir: "",
+				});
+				continue;
+			}
 
 			const outDir = path.resolve(scriptDir, "tests", `${testId}-${studentId}`);
 			fs.mkdirSync(outDir, { recursive: true });
 
+			const sourceImagePath = chosen.path.replace(/\\/g, "/");
 			const args = [
 				"app.py",
 				"-n",
@@ -528,9 +578,11 @@ class TestService {
 				"-o",
 				outDir,
 				"-i",
-				path.resolve(chosen.path),
+				inputPath,
 			];
 			console.log(`[GRADING] Running script for student ${studentId}`);
+			console.log(`[GRADING] Student ${studentId} input: ${inputPath}`);
+			console.log(`[GRADING] Student ${studentId} output: ${outDir}`);
 
 			const outJsonPre = path.join(outDir, `${testId}-${studentId}.json`);
 			const outImgPre = path.join(outDir, `${testId}-${studentId}.jpg`);
@@ -588,12 +640,33 @@ class TestService {
 
 			// After script finishes, read JSON and image
 			const outJson = path.join(outDir, `${testId}-${studentId}.json`);
+			const outImg = path.join(outDir, `${testId}-${studentId}.jpg`);
+			console.log(
+				`[GRADING] Student ${studentId} output status: json=${fs.existsSync(outJson)} image=${fs.existsSync(outImg)}`,
+			);
 			let detected: Record<string, string> | null = null;
 			try {
 				const raw = fs.readFileSync(outJson, "utf8");
 				detected = JSON.parse(raw);
-			} catch {
+			} catch (parseError) {
+				console.error(
+					`[GRADING ERROR] Failed to parse JSON for student ${studentId}:`,
+					parseError instanceof Error ? parseError.message : parseError,
+				);
 				detected = null;
+			}
+
+			if (!detected) {
+				console.error(
+					`[GRADING ERROR] No valid grading output JSON for student ${studentId}`,
+				);
+				results.push({
+					student_id: studentId as number,
+					submission_id: -1,
+					score: null,
+					output_dir: outDir,
+				});
+				continue;
 			}
 
 			// Upsert submission with answers and manual_grades copy
@@ -606,6 +679,8 @@ class TestService {
 			const answersPayload = detected
 				? {
 						answers: detected,
+						source_image_path: sourceImagePath,
+						file_path: sourceImagePath,
 						bubble_image_path: path
 							.join(
 								"grading_service",
