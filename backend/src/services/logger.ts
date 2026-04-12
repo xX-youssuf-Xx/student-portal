@@ -1,13 +1,43 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 
-const LOG_DIR = path.resolve(process.cwd(), "logs");
-const LOG_FILE = path.join(LOG_DIR, "app.log");
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB max before rotation
 
-// Ensure log directory exists
-if (!fs.existsSync(LOG_DIR)) {
-	fs.mkdirSync(LOG_DIR, { recursive: true });
+let resolvedLogFile: string | null | undefined;
+
+function canWriteToDirectory(dir: string): boolean {
+	try {
+		fs.mkdirSync(dir, { recursive: true });
+		fs.accessSync(dir, fs.constants.W_OK);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function getLogFile(): string | null {
+	if (resolvedLogFile !== undefined) {
+		return resolvedLogFile;
+	}
+
+	const candidates = [
+		process.env.APP_LOG_DIR,
+		process.env.LOG_DIR,
+		path.resolve(process.cwd(), "logs"),
+		path.resolve(process.cwd(), "tmp", "logs"),
+		path.join(os.tmpdir(), "studentportal-logs"),
+	].filter((dir): dir is string => Boolean(dir));
+
+	for (const dir of candidates) {
+		if (canWriteToDirectory(dir)) {
+			resolvedLogFile = path.join(dir, "app.log");
+			return resolvedLogFile;
+		}
+	}
+
+	resolvedLogFile = null;
+	return null;
 }
 
 function getTimestamp(): string {
@@ -18,12 +48,15 @@ function getTimestamp(): string {
 
 function rotateIfNeeded(): void {
 	try {
-		if (fs.existsSync(LOG_FILE)) {
-			const stats = fs.statSync(LOG_FILE);
+		const logFile = getLogFile();
+		if (!logFile) return;
+
+		if (fs.existsSync(logFile)) {
+			const stats = fs.statSync(logFile);
 			if (stats.size > MAX_LOG_SIZE) {
-				const rotated = LOG_FILE + ".old";
+				const rotated = logFile + ".old";
 				if (fs.existsSync(rotated)) fs.unlinkSync(rotated);
-				fs.renameSync(LOG_FILE, rotated);
+				fs.renameSync(logFile, rotated);
 			}
 		}
 	} catch {
@@ -33,6 +66,9 @@ function rotateIfNeeded(): void {
 
 function writeToFile(level: string, message: string, ...args: any[]): void {
 	try {
+		const logFile = getLogFile();
+		if (!logFile) return;
+
 		rotateIfNeeded();
 		const extra =
 			args.length > 0
@@ -48,7 +84,7 @@ function writeToFile(level: string, message: string, ...args: any[]): void {
 						.join(" ")
 				: "";
 		const line = `[${getTimestamp()}] [${level}] ${message}${extra}\n`;
-		fs.appendFileSync(LOG_FILE, line, "utf8");
+		fs.appendFileSync(logFile, line, "utf8");
 	} catch {
 		// If file logging fails, silently ignore
 	}
