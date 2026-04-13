@@ -17,10 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
-# Install Bun
-RUN curl -fsSL https://bun.sh/install | bash && \
-    ln -s /root/.bun/bin/bun /usr/local/bin/bun
-
 # Copy package files
 COPY package.json bun.lock* ./
 RUN bun install
@@ -57,10 +53,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bun
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
-
 # Create non-root user
 RUN groupadd -g 1001 bunjs && \
     useradd -m -u 1001 -g bunjs bunjs
@@ -91,5 +83,9 @@ ENV NODE_ENV=production
 ENV PORT=3016
 ENV GRADING_SCRIPT_DIR=/app/grading_service
 
-# Start application
-CMD ["bun", "run", "dist/index.js"]
+# Add cache bust label to force fresh pulls
+ARG BUILD_DATE
+LABEL build.date=$BUILD_DATE
+
+# Start application - use node directly instead of bun run
+CMD ["node", "dist/index.js"]
