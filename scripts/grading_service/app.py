@@ -166,9 +166,10 @@ def infer_missing_boxes(columns, expected_structure):
     return all_boxes
 
 
-def detect_answer_intensity(src_rgb, circles, threshold_factor=0.93, q_num=None):
+def detect_answer_intensity(src_rgb, circles, threshold_factor=0.92, q_num=None):
     """
     Detect marked answer based on intensity with adaptive thresholding.
+    Uses multi-signal approach: mean, percentiles, and separation for robust detection.
     Returns answer letter or "-" if none detected.
     """
     if not circles:
@@ -178,7 +179,7 @@ def detect_answer_intensity(src_rgb, circles, threshold_factor=0.93, q_num=None)
     letter_map = {0: "D", 1: "C", 2: "B", 3: "A"}  # Reversed order
 
     for ci, (cx, cy, r) in enumerate(circles):
-        sample_r = 8
+        sample_r = 10
         xx0, yy0 = max(0, cx - sample_r), max(0, cy - sample_r)
         xx1, yy1 = (
             min(src_rgb.shape[1], cx + sample_r),
@@ -186,17 +187,22 @@ def detect_answer_intensity(src_rgb, circles, threshold_factor=0.93, q_num=None)
         )
 
         if xx1 <= xx0 or yy1 <= yy0:
-            darkness_vals.append((ci, 255))
+            darkness_vals.append((ci, 255, 255, 255))
             continue
 
         patch = src_rgb[yy0:yy1, xx0:xx1]
         if patch.size == 0:
-            darkness_vals.append((ci, 255))
+            darkness_vals.append((ci, 255, 255, 255))
             continue
 
         gray_patch = cv2.cvtColor(patch, cv2.COLOR_RGB2GRAY)
         mean_intensity = float(np.mean(gray_patch))
-        darkness_vals.append((ci, mean_intensity))
+        p10_intensity = float(np.percentile(gray_patch, 10))
+        p25_intensity = float(np.percentile(gray_patch, 25))
+        p50_intensity = float(np.percentile(gray_patch, 50))
+        # Robust darkness score: weighted blend favoring darker pixels
+        blended_score = (p10_intensity * 0.3) + (p25_intensity * 0.3) + (mean_intensity * 0.4)
+        darkness_vals.append((ci, blended_score, mean_intensity, p25_intensity))
 
     if not darkness_vals:
         return "-"
@@ -209,26 +215,42 @@ def detect_answer_intensity(src_rgb, circles, threshold_factor=0.93, q_num=None)
         second_darkest = sorted_darkness[1]
         diff = second_darkest[1] - darkest[1]
         avg = np.mean([d[1] for d in darkness_vals])
+        darkest_mean = darkest[2]
 
         if q_num is not None:
             intensities_str = " ".join(
-                [f"{letter_map.get(ci, '?')}={int(val)}" for ci, val in darkness_vals]
+                [
+                    f"{letter_map.get(ci, '?')}={int(val)}"
+                    for ci, val, _, _ in darkness_vals
+                ]
             )
             print(
-                f"  Q{q_num}: {intensities_str} | avg={avg:.0f} darkest={letter_map.get(darkest[0],'?')}={darkest[1]:.0f} diff={diff:.0f} thr={avg*threshold_factor:.0f}"
+                f"  Q{q_num}: {intensities_str} | avg={avg:.0f} darkest={letter_map.get(darkest[0], '?')}={darkest[1]:.0f} diff={diff:.0f} thr={avg * threshold_factor:.0f}"
             )
 
-        # Primary: darkest is noticeably darker than average AND has clear separation
-        if darkest[1] < avg * threshold_factor and diff > 10:
+        # Strategy 1: Strong signal - clearly darker than average with good separation
+        if darkest[1] < avg * threshold_factor and diff >= 8:
             return letter_map.get(darkest[0], "-")
 
-        # Fallback: if the diff is very large, the answer is clearly marked
-        # even if it barely fails the average threshold
-        if diff > 20 and darkest[1] < avg:
+        # Strategy 2: Medium contrast faint marks - moderate separation is enough
+        # for light scans where all bubbles are bright
+        if diff >= 6 and darkest[1] < avg * 0.95 and darkest_mean < 220:
+            return letter_map.get(darkest[0], "-")
+
+        # Strategy 3: Light pencil - if there's clear separation and not too bright
+        # this catches feint but intentional marks
+        if diff >= 5 and darkest_mean < 200:
+            # Additional safety: second darkest shouldn't be too close to darkest
+            if diff < second_darkest[1] * 0.15:  # diff is <15% of second-darkest
+                return letter_map.get(darkest[0], "-")
+
+        # Strategy 4: Very strong separation even if average threshold not met
+        # This handles overlapping marks or smudges
+        if diff >= 15 and darkest[1] < avg * 1.05:
             return letter_map.get(darkest[0], "-")
     else:
         # Only one circle, check if it's dark enough
-        if darkest[1] < 180:
+        if darkest[1] < 175:
             return letter_map.get(darkest[0], "-")
 
     return "-"
@@ -269,6 +291,24 @@ def preprocess_for_detection(image_path, output_root):
     tmp_path = os.path.join(output_root, "_preprocessed_input.jpg")
     cv2.imwrite(tmp_path, enhanced_bgr)
     return tmp_path
+
+
+def candidate_rank(rects_list):
+    """Rank detection candidates by count closeness and box-size consistency."""
+    count = len(rects_list)
+    if count == 0:
+        return (0, 999, 999.0)
+
+    widths = np.array([r[2] for r in rects_list], dtype=np.float32)
+    heights = np.array([r[3] for r in rects_list], dtype=np.float32)
+
+    w_mean = float(np.mean(widths)) if widths.size else 1.0
+    h_mean = float(np.mean(heights)) if heights.size else 1.0
+    w_cv = float(np.std(widths) / max(w_mean, 1e-6))
+    h_cv = float(np.std(heights) / max(h_mean, 1e-6))
+    consistency_penalty = w_cv + h_cv
+
+    return (min(count, 55), abs(count - 55), consistency_penalty)
 
 
 def detect_boxes_with_fallback(image_path, output_root):
@@ -320,7 +360,8 @@ def detect_boxes_with_fallback(image_path, output_root):
     best_output_image = None
     best_variant = "none"
     best_name = "none"
-    best_count = -1
+    best_count = 0
+    best_rank = (0, 999, 999.0)
 
     try:
         for variant_name, variant_path in variants:
@@ -328,19 +369,31 @@ def detect_boxes_with_fallback(image_path, output_root):
                 rects, _, _, output_image = get_boxes(variant_path, cfg=cfg, plot=False)
                 rects_list = [tuple(r) for r in rects] if rects is not None else []
                 count = len(rects_list)
+                rank = candidate_rank(rects_list)
                 print(
-                    f"[GRADING] detect variant={variant_name} preset={name} rectangles={count}"
+                    f"[GRADING] detect variant={variant_name} preset={name} rectangles={count} rank={rank}"
                 )
 
-                if output_image is not None and count > best_count:
+                if output_image is None:
+                    continue
+
+                better = (
+                    rank[0] > best_rank[0]
+                    or (rank[0] == best_rank[0] and rank[1] < best_rank[1])
+                    or (
+                        rank[0] == best_rank[0]
+                        and rank[1] == best_rank[1]
+                        and rank[2] < best_rank[2]
+                    )
+                )
+
+                if better:
                     best_rects = rects_list
                     best_output_image = output_image
                     best_variant = variant_name
                     best_name = name
+                    best_rank = rank
                     best_count = count
-
-                if output_image is not None and count >= 55:
-                    return rects_list, output_image, variant_name, name, count
     finally:
         if enhanced_input and os.path.exists(enhanced_input):
             try:
@@ -413,7 +466,7 @@ try:
                     )
 
         if len(indexed_boxes) > 55:
-            indexed_boxes.sort(key=lambda b: (b[3], -(b[1][2] * b[1][3])))
+            indexed_boxes.sort(key=lambda b: (b[3], -(b[1][2] * b[1][3]), b[2]))
             indexed_boxes = indexed_boxes[:55]
         print(
             f"[GRADING] rectangles before filter={before_filter_count} after filter={len(indexed_boxes)}"
