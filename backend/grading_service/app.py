@@ -166,7 +166,7 @@ def infer_missing_boxes(columns, expected_structure):
     return all_boxes
 
 
-def detect_answer_intensity(src_rgb, circles, threshold_factor=0.85):
+def detect_answer_intensity(src_rgb, circles, threshold_factor=0.93, q_num=None):
     """
     Detect marked answer based on intensity with adaptive thresholding.
     Returns answer letter or "-" if none detected.
@@ -178,7 +178,7 @@ def detect_answer_intensity(src_rgb, circles, threshold_factor=0.85):
     letter_map = {0: "D", 1: "C", 2: "B", 3: "A"}  # Reversed order
 
     for ci, (cx, cy, r) in enumerate(circles):
-        sample_r = 6
+        sample_r = 8
         xx0, yy0 = max(0, cx - sample_r), max(0, cy - sample_r)
         xx1, yy1 = (
             min(src_rgb.shape[1], cx + sample_r),
@@ -207,16 +207,28 @@ def detect_answer_intensity(src_rgb, circles, threshold_factor=0.85):
 
     if len(sorted_darkness) > 1:
         second_darkest = sorted_darkness[1]
-        # Check if there's a significant difference
-        diff = second_darkest[1] - darkest[0]
+        diff = second_darkest[1] - darkest[1]
         avg = np.mean([d[1] for d in darkness_vals])
 
-        # If darkest is significantly darker than average, it's marked
-        if darkest[1] < avg * threshold_factor and diff > 15:
+        if q_num is not None:
+            intensities_str = " ".join(
+                [f"{letter_map.get(ci, '?')}={int(val)}" for ci, val in darkness_vals]
+            )
+            print(
+                f"  Q{q_num}: {intensities_str} | avg={avg:.0f} darkest={letter_map.get(darkest[0],'?')}={darkest[1]:.0f} diff={diff:.0f} thr={avg*threshold_factor:.0f}"
+            )
+
+        # Primary: darkest is noticeably darker than average AND has clear separation
+        if darkest[1] < avg * threshold_factor and diff > 10:
+            return letter_map.get(darkest[0], "-")
+
+        # Fallback: if the diff is very large, the answer is clearly marked
+        # even if it barely fails the average threshold
+        if diff > 20 and darkest[1] < avg:
             return letter_map.get(darkest[0], "-")
     else:
         # Only one circle, check if it's dark enough
-        if darkest[1] < 150:
+        if darkest[1] < 180:
             return letter_map.get(darkest[0], "-")
 
     return "-"
@@ -374,11 +386,34 @@ try:
         # Filter out false positives detected below the bubble-sheet area
         src_h = src_bgr.shape[0] if src_bgr is not None else 0
         if src_h > 0:
-            max_y_threshold = src_h * 0.88
-            indexed_boxes = [b for b in indexed_boxes if b[3] < max_y_threshold]
+            initial_count = len(indexed_boxes)
+            primary_ratio = 0.96
+            relaxed_ratio = 0.99
+
+            primary_filtered = [
+                b for b in indexed_boxes if b[3] < src_h * primary_ratio
+            ]
+            if len(primary_filtered) >= 45:
+                indexed_boxes = primary_filtered
+                print(
+                    f"[GRADING] bottom filter ratio={primary_ratio:.2f} kept={len(indexed_boxes)}/{initial_count}"
+                )
+            else:
+                relaxed_filtered = [
+                    b for b in indexed_boxes if b[3] < src_h * relaxed_ratio
+                ]
+                if len(relaxed_filtered) >= 45:
+                    indexed_boxes = relaxed_filtered
+                    print(
+                        f"[GRADING] bottom filter ratio={relaxed_ratio:.2f} kept={len(indexed_boxes)}/{initial_count}"
+                    )
+                else:
+                    print(
+                        "[GRADING] bottom filter skipped (too few boxes kept by thresholds)"
+                    )
 
         if len(indexed_boxes) > 55:
-            indexed_boxes.sort(key=lambda b: b[1][2] * b[1][3], reverse=True)
+            indexed_boxes.sort(key=lambda b: (b[3], -(b[1][2] * b[1][3])))
             indexed_boxes = indexed_boxes[:55]
         print(
             f"[GRADING] rectangles before filter={before_filter_count} after filter={len(indexed_boxes)}"
@@ -463,7 +498,7 @@ try:
                     continue
 
                 # Detect answer
-                answer = detect_answer_intensity(src_rgb, circles)
+                answer = detect_answer_intensity(src_rgb, circles, q_num=box_num)
                 json_results[str(box_num)] = answer
 
                 # Store for visualization
