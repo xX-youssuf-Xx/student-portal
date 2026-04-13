@@ -1,6 +1,5 @@
 # Build stage
 FROM ubuntu:22.04 AS builder
-
 WORKDIR /app
 
 # Install system dependencies
@@ -36,13 +35,11 @@ WORKDIR /app
 
 # Production stage
 FROM ubuntu:22.04
-
 WORKDIR /app
 
-# Install runtime dependencies (including OpenCV requirements for libGL)
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip \
-    nodejs npm \
     libvips42 \
     ghostscript \
     graphicsmagick \
@@ -53,6 +50,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Bun in production
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
 
 # Create non-root user
 RUN groupadd -g 1001 bunjs && \
@@ -79,14 +80,11 @@ USER bunjs
 # Expose port
 EXPOSE 3016
 
-# Environment variables (to be overridden in Dokploy)
 ENV NODE_ENV=production
 ENV PORT=3016
 ENV GRADING_SCRIPT_DIR=/app/grading_service
 
-# Add cache bust label to force fresh pulls
 ARG BUILD_DATE
 LABEL build.date=$BUILD_DATE
 
-# Start application - use node directly instead of bun run
-CMD ["node", "dist/index.js"]
+CMD ["bun", "run", "dist/index.js"]
