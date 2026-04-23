@@ -321,7 +321,7 @@ const TestManagement = () => {
 										<strong>المدة:</strong> {test.duration_minutes} دقيقة
 									</p>
 								)}
-								{test.average_score !== null &&
+								{/* {test.average_score !== null &&
 									test.average_score !== undefined &&
 									Number(test.submission_count) > 0 && (
 										<p className="average-score">
@@ -339,7 +339,7 @@ const TestManagement = () => {
 												</span>
 											)}
 										</p>
-									)}
+									)} */}
 							</div>
 
 							{/* Countdown Timer */}
@@ -1646,7 +1646,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
 								}
 							</strong>
 						</span>
-						{testDetail?.average_score !== null &&
+						{/* {testDetail?.average_score !== null &&
 							testDetail?.average_score !== undefined && (
 								<span className="stat-badge average">
 									📊 المتوسط:{" "}
@@ -1654,7 +1654,7 @@ const SubmissionsModal = ({ test, submissions, onClose, onGradeUpdate }) => {
 										{Math.floor(Number(testDetail.average_score))}%
 									</strong>
 								</span>
-							)}
+							)} */}
 					</div>
 				</div>
 

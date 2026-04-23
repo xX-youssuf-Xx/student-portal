@@ -584,7 +584,7 @@ const TestResult = () => {
 							)}
 
 							{/* Class Average */}
-							{result.average_score !== null &&
+							{/* {result.average_score !== null &&
 								result.average_score !== undefined && (
 									<div
 										className="average-display"
@@ -643,7 +643,7 @@ const TestResult = () => {
 											</span>
 										</div>
 									</div>
-								)}
+								)} */}
 						</div>
 					</div>
 				)}

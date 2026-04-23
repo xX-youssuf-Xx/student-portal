@@ -586,7 +586,7 @@ const StudentDashboard = () => {
 															)}
 														</div>
 													)}
-												{test.average_score !== null &&
+												{/* {test.average_score !== null &&
 													test.average_score !== undefined && (
 														<div className="average-info">
 															<span className="average-score">
@@ -604,7 +604,7 @@ const StudentDashboard = () => {
 																)}
 															</span>
 														</div>
-													)}
+													)} */}
 											</div>
 											{showDetails || showGradeOnly ? (
 												<div className="test-actions">
